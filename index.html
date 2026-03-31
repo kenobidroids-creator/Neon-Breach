@@ -2,997 +2,363 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NODEBUSTER // NEON BREACH</title>
-    <style>
-        :root {
-            --neon-blue:   #00e5ff;
-            --neon-pink:   #ff007f;
-            --neon-purple: #d500f9;
-            --bg:          #05050a;
-        }
-
-        /* ── Reset & base ──────────────────────────────────────────── */
-        * { box-sizing: border-box; }
-
-        body {
-            margin: 0; padding: 0;
-            background: var(--bg);
-            color: #ddd;
-            font-family: 'Courier New', Courier, monospace;
-            overflow: hidden;
-            user-select: none;
-            touch-action: none;
-            cursor: none;
-        }
-
-        /* ── Canvas ─────────────────────────────────────────────────── */
-        #gameCanvas { display: block; }
-
-        /* ── HUD overlay ────────────────────────────────────────────── */
-        #ui-layer {
-            position: absolute; inset: 0;
-            pointer-events: none;
-            padding: 20px;
-            display: flex;
-            justify-content: space-between;
-            z-index: 5;
-        }
-
-        .left-ui  { display: flex; flex-direction: column; gap: 15px; }
-        .right-ui { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-
-        /* ── Stat bars ───────────────────────────────────────────────── */
-        .bar-container {
-            width: 250px; height: 24px;
-            border: 2px solid #555;
-            background: rgba(0,0,0,0.6);
-            position: relative;
-            box-shadow: 0 0 8px rgba(0,0,0,0.8);
-        }
-
-        #health-border { border-color: #770033; }
-        #health-fill {
-            height: 100%; width: 100%;
-            background: var(--neon-pink);
-            box-shadow: 0 0 12px var(--neon-pink);
-            transition: width 0.1s linear;
-        }
-
-        #xp-border { border-color: #440066; }
-        #xp-fill {
-            height: 100%; width: 0%;
-            background: var(--neon-purple);
-            box-shadow: 0 0 12px var(--neon-purple);
-            transition: width 0.1s linear;
-        }
-
-        .label {
-            position: absolute; top: -18px; left: 0;
-            font-size: 11px; font-weight: bold; color: #888;
-            text-shadow: 1px 1px 0 #000;
-            letter-spacing: 1px;
-        }
-        .value-text {
-            position: absolute; inset: 0;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 13px; font-weight: bold;
-            color: #fff; text-shadow: 1px 1px 2px #000;
-        }
-
-        /* ── Fragment counter ────────────────────────────────────────── */
-        #fragment-counter {
-            font-size: 20px;
-            color: var(--neon-blue);
-            font-weight: bold;
-            text-shadow: 0 0 10px rgba(0,229,255,0.6);
-            letter-spacing: 1px;
-        }
-
-        /* ── Level display ───────────────────────────────────────────── */
-        #level-display {
-            font-size: 13px;
-            color: var(--neon-purple);
-            text-shadow: 0 0 8px rgba(213,0,249,0.6);
-            letter-spacing: 1px;
-            opacity: 0.85;
-        }
-
-        /* ── Timer ───────────────────────────────────────────────────── */
-        #time-label  { font-size: 11px; color: #666; letter-spacing: 1px; }
-        #time-display {
-            font-size: 26px; font-weight: bold; color: #fff;
-            text-shadow: 0 0 10px rgba(255,255,255,0.5);
-            background: rgba(0,0,0,0.5);
-            padding: 5px 15px;
-            border: 2px solid #333;
-            border-radius: 4px;
-        }
-
-        /* ── Progress bar (bottom) ───────────────────────────────────── */
-        #progress-container {
-            position: absolute; bottom: 10px; left: 5%; width: 90%; height: 12px;
-            border: 2px solid #333;
-            background: rgba(0,0,0,0.8);
-            box-shadow: 0 0 10px rgba(0,0,0,0.9);
-            z-index: 5;
-        }
-        #progress-fill {
-            height: 100%; width: 0%;
-            background: #fff;
-            box-shadow: 0 0 15px #fff;
-            transition: width 0.2s linear;
-        }
-        #progress-label {
-            position: absolute; top: -20px; left: 0;
-            font-size: 11px; font-weight: bold;
-            color: #666; letter-spacing: 1px;
-        }
-
-        /* ── Level-up toast ──────────────────────────────────────────── */
-        #levelup-toast {
-            position: fixed; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 32px; font-weight: bold;
-            color: var(--neon-purple);
-            text-shadow: 0 0 20px var(--neon-purple);
-            letter-spacing: 4px;
-            pointer-events: none; z-index: 18;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-
-        /* ── Damage flash ────────────────────────────────────────────── */
-        #damage-flash {
-            position: fixed; inset: 0;
-            background: rgba(255,0,127,0.22);
-            pointer-events: none; z-index: 15;
-            opacity: 0;
-            transition: opacity 0.1s;
-        }
-
-        /* ── End-round modal ─────────────────────────────────────────── */
-        #modal-overlay {
-            position: fixed; inset: 0;
-            background: rgba(5,5,10,0.85);
-            display: none;
-            justify-content: center; align-items: center;
-            z-index: 20;
-            pointer-events: auto;
-            cursor: default;
-            backdrop-filter: blur(4px);
-        }
-        .modal-content {
-            background: rgba(15,15,20,0.6);
-            border: 2px solid var(--neon-pink);
-            border-radius: 4px;
-            padding: 30px;
-            width: 90%; max-width: 500px;
-            text-align: center;
-            box-shadow:
-                0 0 30px rgba(255,0,127,0.3),
-                inset 0 0 20px rgba(255,0,127,0.1);
-        }
-        .modal-title {
-            font-size: 28px; font-weight: bold;
-            margin-bottom: 15px;
-            color: var(--neon-pink);
-            text-shadow: 0 0 10px rgba(255,0,127,0.6);
-            letter-spacing: 2px;
-        }
-        .modal-subtitle {
-            font-size: 13px; color: #888;
-            margin-bottom: 25px;
-            border-bottom: 1px solid #333;
-            padding-bottom: 15px;
-            letter-spacing: 0.5px;
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 28px;
-        }
-        .stat-span { grid-column: span 2; }
-        .stat-box {
-            background: rgba(0,0,0,0.5);
-            padding: 12px;
-            border-radius: 4px;
-            border: 1px solid #2a2a2a;
-        }
-        .stat-label {
-            font-size: 11px; color: #666;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .stat-value { font-size: 20px; font-weight: bold; color: #fff; }
-        .stat-data   { color: var(--neon-blue);   text-shadow: 0 0 8px var(--neon-blue);   }
-        .stat-xp     { color: var(--neon-purple);  text-shadow: 0 0 8px var(--neon-purple); }
-
-        .btn {
-            width: 100%; padding: 14px;
-            font-family: inherit; font-size: 17px; font-weight: bold;
-            color: #fff;
-            background: rgba(0,229,255,0.08);
-            border: 2px solid var(--neon-blue);
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background 0.2s, box-shadow 0.2s;
-            text-transform: lowercase;
-            letter-spacing: 2px;
-            box-shadow: 0 0 10px rgba(0,229,255,0.15);
-        }
-        .btn:hover {
-            background: rgba(0,229,255,0.22);
-            box-shadow: 0 0 22px rgba(0,229,255,0.55);
-        }
-
-        /* ── Scanline overlay ────────────────────────────────────────── */
-        .scanlines {
-            position: fixed; inset: 0;
-            background:
-                linear-gradient(rgba(10,10,15,0) 50%, rgba(0,0,0,0.28) 50%),
-                linear-gradient(90deg, rgba(255,0,127,0.035), rgba(0,229,255,0.035));
-            background-size: 100% 4px, 4px 100%;
-            pointer-events: none;
-            z-index: 50;
-            opacity: 0.55;
-        }
-
-        /* ── Responsive tweaks ───────────────────────────────────────── */
-        @media (max-width: 600px) {
-            .bar-container { width: 160px; height: 18px; }
-            .left-ui { gap: 10px; }
-            #fragment-counter { font-size: 16px; }
-            #time-display { font-size: 20px; padding: 4px 10px; }
-        }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#05050a">
+    <title>HACKBUSTER</title>
+    <link rel="stylesheet" href="hackbuster.css">
 </head>
 <body>
 
-<canvas id="gameCanvas"></canvas>
-
-<!-- HUD -->
-<div id="ui-layer">
-    <div class="left-ui">
-        <div class="bar-container" id="health-border">
-            <div class="label">PLAYER INTEGRITY</div>
-            <div id="health-fill"></div>
-            <div class="value-text" id="health-text">34.0/34.0</div>
-        </div>
-        <div class="bar-container" id="xp-border">
-            <div class="label">SYSTEM XP</div>
-            <div id="xp-fill"></div>
-            <div class="value-text" id="xp-text">0%</div>
-        </div>
-        <div id="fragment-counter">DATA_FRAGS: 0</div>
-        <div id="level-display">LVL 1</div>
-    </div>
-    <div class="right-ui">
-        <div id="time-label">TIME SURVIVED</div>
-        <div id="time-display">00:00</div>
-    </div>
-</div>
-
-<!-- Boss progress bar -->
-<div id="progress-container">
-    <div id="progress-label">BOSS THRESHOLD</div>
-    <div id="progress-fill"></div>
-</div>
-
-<!-- Damage flash overlay -->
-<div id="damage-flash"></div>
-
-<!-- Level-up toast -->
-<div id="levelup-toast">LEVEL UP</div>
-
-<!-- End-round modal -->
-<div id="modal-overlay">
-    <div class="modal-content">
-        <div class="modal-title" id="modal-title-text">SESSION TERMINATED</div>
-        <div class="modal-subtitle" id="modal-subtitle-text">status code 401: integrity reached zero</div>
-        <div class="stats-grid">
-            <div class="stat-box">
-                <div class="stat-label">Session Time</div>
-                <div class="stat-value" id="stat-time">00:00</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Nodes Breached</div>
-                <div class="stat-value" id="stat-nodes">0</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Session Frags</div>
-                <div class="stat-value stat-data" id="stat-session-frags">0</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Banked Data</div>
-                <div class="stat-value stat-data" id="stat-banked-data">0</div>
-            </div>
-            <div class="stat-box stat-span">
-                <div class="stat-label">Total XP</div>
-                <div class="stat-value stat-xp" id="stat-xp">0</div>
-            </div>
-        </div>
-        <button class="btn" onclick="startNewRound()">new session</button>
+<!-- =============================================
+     SCREEN: TITLE
+     ============================================= -->
+<div id="screen-title" class="screen">
+    <div class="title-bg"></div>
+    <div class="title-content">
+        <div class="title-logo">HACK<span>BUSTER</span></div>
+        <div class="title-tagline">// breach · compile · dominate //</div>
+        <div class="title-divider"></div>
+        <div class="title-save-info" id="title-save-info">Loading...</div>
+        <button class="title-btn title-btn-primary" onclick="titleStartNewBreach()">
+            ▶ START BREACH
+        </button>
+        <button class="title-btn title-btn-secondary" id="title-btn-continue"
+                onclick="titleContinueBreach()" style="display:none">
+            ↺ CONTINUE BREACH
+        </button>
+        <button class="title-btn title-btn-ghost" onclick="titleGoToCompiler()">
+            💻 SCRIPT COMPILER
+        </button>
+        <button class="title-btn title-btn-ghost" onclick="titleGoToSettings()">
+            ⚙ SETTINGS
+        </button>
     </div>
 </div>
 
-<!-- Scanlines -->
+<!-- =============================================
+     SCREEN: BREACH (Arena)
+     ============================================= -->
+<div id="screen-breach" class="screen">
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- HUD -->
+    <div id="ui-layer">
+        <div class="left-ui">
+            <div class="bar-container" id="health-border">
+                <div class="bar-label">PLAYER INTEGRITY</div>
+                <div id="health-fill"></div>
+                <div class="value-text" id="health-text">34.0/34.0</div>
+            </div>
+            <div class="bar-container" id="xp-border">
+                <div class="bar-label">SYSTEM XP</div>
+                <div id="xp-fill"></div>
+                <div class="value-text" id="xp-text">0%</div>
+            </div>
+            <div id="fragment-counter">DATA_FRAGS: 0</div>
+            <div id="level-display">LVL 1</div>
+            <button id="breach-back-btn" onclick="breachBackToTitle()">← TITLE</button>
+        </div>
+        <div class="right-ui">
+            <div id="time-label">TIME SURVIVED</div>
+            <div id="time-display">00:00</div>
+        </div>
+    </div>
+
+    <!-- Boss progress bar -->
+    <div id="progress-container">
+        <div id="progress-label">BOSS THRESHOLD</div>
+        <div id="progress-fill"></div>
+    </div>
+
+    <!-- Damage flash -->
+    <div id="damage-flash"></div>
+
+    <!-- Level-up toast -->
+    <div id="levelup-toast">LEVEL UP</div>
+
+    <!-- Run-end overlay -->
+    <div id="run-end-overlay">
+        <div class="run-end-box">
+            <div class="re-title">SESSION TERMINATED</div>
+            <div class="re-sub">status code 401: integrity reached zero</div>
+            <div class="re-stats">
+                <div class="re-stat-box">
+                    <div class="re-stat-label">Session Time</div>
+                    <div class="re-stat-val" id="re-stat-time">00:00</div>
+                </div>
+                <div class="re-stat-box">
+                    <div class="re-stat-label">Nodes Breached</div>
+                    <div class="re-stat-val" id="re-stat-nodes">0</div>
+                </div>
+                <div class="re-stat-box">
+                    <div class="re-stat-label">Session Frags</div>
+                    <div class="re-stat-val blue" id="re-stat-frags">+0</div>
+                </div>
+                <div class="re-stat-box">
+                    <div class="re-stat-label">Banked Data</div>
+                    <div class="re-stat-val blue" id="re-stat-banked">0</div>
+                </div>
+                <div class="re-stat-box span-2">
+                    <div class="re-stat-label">Total XP Banked</div>
+                    <div class="re-stat-val purple" id="re-stat-xp">0</div>
+                </div>
+            </div>
+
+            <div class="re-frags-section">
+                <div class="re-frags-title">Script Fragments Found</div>
+                <div class="re-frag-list" id="re-frag-list"></div>
+            </div>
+
+            <div class="re-buttons">
+                <button class="re-btn re-btn-breach"   onclick="reBreachAgain()">▶ BREACH AGAIN</button>
+                <button class="re-btn re-btn-compiler" onclick="reGoToCompiler()">💻 OPEN COMPILER</button>
+                <button class="re-btn re-btn-title"    onclick="reGoToTitle()">← BACK TO TITLE</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- =============================================
+     SCREEN: COMPILER
+     ============================================= -->
+<div id="screen-compiler" class="screen">
+
+    <!-- TOP BAR -->
+    <div id="comp-top-bar">
+        <div class="comp-nav-brand">HACKBUSTER <span>//</span> COMPILE</div>
+        <div class="desktop-nav-group">
+            <button class="nav-btn active" id="nav-ide"       onclick="switchView('ide')">IDE Terminal</button>
+            <button class="nav-btn"        id="nav-workspace" onclick="switchView('workspace')">Node Workspace</button>
+            <button class="topbar-settings-btn" onclick="openSettings()">⚙ Settings</button>
+            <button class="topbar-breach-btn"   onclick="compilerGoToBreach()">⚡ Breach</button>
+        </div>
+        <!-- Mobile top bar: brand left, actions right -->
+        <div class="mobile-only" style="gap:6px; align-items:center;">
+            <button class="topbar-breach-btn" onclick="compilerGoToBreach()">⚡ Breach</button>
+        </div>
+    </div>
+
+    <!-- MAIN LAYOUT -->
+    <div id="comp-main-layout" style="flex-grow:1; display:flex; overflow:hidden; position:relative;">
+
+        <!-- LEFT PANEL — LOCAL STASH -->
+        <div id="left-panel" class="side-panel">
+            <button id="toggle-left" class="panel-toggle desktop-only" onclick="togglePanel('left')">◀</button>
+            <div class="panel-inner">
+                <div class="panel-header">
+                    <span>Local Stash</span>
+                    <div class="close-btn mobile-only" onclick="closeMobileDrawer()">×</div>
+                </div>
+                <div class="tab-container" id="stash-tab-bar">
+                    <button class="tab active" id="tab-btn-fragments" onclick="switchStashTab('fragments')">Fragments</button>
+                    <button class="tab"        id="tab-btn-nodes"     onclick="switchStashTab('nodes')">Compiled</button>
+                    <button class="tab"        id="tab-btn-macros"    onclick="switchStashTab('macros')">Macros</button>
+                </div>
+                <div id="tab-fragments" class="scroll-section">
+                    <div class="hint-label">Select a blueprint, then inject fragments to compile it.<br>Fragments drop from enemy nodes in the Breach arena.</div>
+                    <div id="desktop-frag-grid" class="grid-layout"></div>
+                </div>
+                <div id="tab-nodes" class="scroll-section" style="display:none;">
+                    <div class="hint-label">Click to deploy. Right-click two identical nodes to Tier Up.</div>
+                    <div id="stash-grid" class="grid-layout"></div>
+                </div>
+                <div id="tab-macros" class="scroll-section" style="display:none;">
+                    <div id="macro-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CENTER PANEL -->
+        <div id="comp-center-panel" style="flex-grow:1; display:flex; flex-direction:column; position:relative; overflow:hidden;">
+
+            <!-- IDE VIEW -->
+            <div id="view-ide" class="view-container active">
+                <div id="ide-layout">
+                    <div id="ide-sidebar">
+                        <div class="panel-header" style="font-size:10px;">Blueprints</div>
+                        <div id="blueprint-list" class="scroll-section"></div>
+                    </div>
+                    <div id="ide-main">
+                        <div class="ide-header">
+                            <div>
+                                <div id="ide-title">Select Blueprint</div>
+                                <div id="ide-status">IDLE</div>
+                            </div>
+                            <button class="auto-btn" onclick="autoFillIDE()">Auto-Fill</button>
+                        </div>
+                        <div class="code-editor" id="ide-editor">
+                            <div style="color:#333; font-style:italic; margin-top:8px;">// Awaiting blueprint selection...</div>
+                        </div>
+                        <div id="ide-console">
+                            <div>&gt; System terminal ready.</div>
+                            <div>&gt; Select a Blueprint to begin compilation.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WORKSPACE VIEW -->
+            <div id="view-workspace" class="view-container">
+                <div id="mobile-workspace-toolbar" class="mobile-only">
+                    <div class="mob-ws-toolbar-inner">
+                        <button class="mob-ws-btn" onclick="openMobileDrawer('nodes')">＋ Deploy Node</button>
+                        <button class="mob-ws-btn mob-ws-btn-gold" onclick="openMobileDrawer('macros')">⚡ Macros</button>
+                    </div>
+                </div>
+                <div id="workspace-canvas-area">
+                    <div id="canvas-inner">
+                        <svg id="wire-layer"></svg>
+                        <div id="node-layer"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT PANEL — INSPECTOR -->
+        <div id="right-panel" class="side-panel">
+            <button id="toggle-right" class="panel-toggle desktop-only" onclick="togglePanel('right')">▶</button>
+            <div class="panel-inner">
+                <div class="panel-header">
+                    <span>Pipeline Inspector</span>
+                    <div class="close-btn mobile-only"
+                         onclick="document.getElementById('right-panel').classList.remove('open')">×</div>
+                </div>
+                <div class="scroll-section">
+                    <div id="inspector-default">
+                        Select a deployed node<br>to view its telemetry.
+                    </div>
+                    <div id="inspector-content">
+                        <div class="inspector-title">
+                            <span id="insp-title">Node</span>
+                            <span class="tier-badge" id="insp-tier">T0</span>
+                        </div>
+                        <div class="stat-block" id="insp-stats">
+                            <div class="stat-row">
+                                <span class="stat-label">Param</span>
+                                <span class="stat-val" id="insp-stat-name" style="font-size:11px;">—</span>
+                            </div>
+                            <div class="stat-row" style="border-bottom:1px solid #1a1a28; padding-bottom:5px;">
+                                <span class="stat-label">Base</span>
+                                <span class="stat-val val-base" id="insp-base">0.0</span>
+                            </div>
+                            <div class="stat-row" style="border-bottom:1px solid #1a1a28; padding-bottom:5px; margin-top:5px;">
+                                <span class="stat-label">Compile Mod</span>
+                                <span class="stat-val val-mod" id="insp-mod">+0.0</span>
+                            </div>
+                            <div class="stat-row" style="margin-top:5px;">
+                                <span class="stat-label">Output</span>
+                                <span class="stat-val val-total" id="insp-total">0.0</span>
+                            </div>
+                        </div>
+                        <div class="insp-desc" id="insp-desc"></div>
+                        <div class="code-preview" id="insp-code"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /comp-main-layout -->
+
+    <!-- MOBILE BOTTOM NAV — 4 tabs -->
+    <div id="bottom-nav" class="mobile-only">
+        <button class="mob-nav-btn active" id="mob-nav-ide" onclick="switchView('ide')">
+            <span class="mob-nav-icon">💻</span>
+            <span class="mob-nav-label">IDE</span>
+        </button>
+        <button class="mob-nav-btn" id="mob-nav-workspace" onclick="switchView('workspace')">
+            <span class="mob-nav-icon">🕸️</span>
+            <span class="mob-nav-label">Pipeline</span>
+        </button>
+        <button class="mob-nav-btn" id="mob-nav-stash" onclick="mobToggleStash()">
+            <span class="mob-nav-icon">📦</span>
+            <span class="mob-nav-label">Stash</span>
+        </button>
+        <button class="mob-nav-btn" id="mob-nav-inspector" onclick="mobToggleInspector()">
+            <span class="mob-nav-icon">🔍</span>
+            <span class="mob-nav-label">Inspector</span>
+        </button>
+        <button class="mob-nav-btn" id="mob-nav-title" onclick="compilerBackToTitle()">
+            <span class="mob-nav-icon">⬅</span>
+            <span class="mob-nav-label">Title</span>
+        </button>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast-container"></div>
+
+    <!-- COMPILE MODAL -->
+    <div id="compile-modal-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%;
+         background:rgba(4,4,10,0.88); display:none; justify-content:center; align-items:center;
+         z-index:100; backdrop-filter:blur(6px);">
+        <div class="comp-modal-content">
+            <div class="comp-modal-title" id="comp-modal-title">NODE COMPILED</div>
+            <div class="comp-modal-sub">Successfully added to Deployed Stash.</div>
+            <button class="btn" onclick="closeCompileModal(); switchView('ide');">Stay in IDE</button>
+            <button class="btn btn-accent" onclick="closeCompileModal(); switchView('workspace'); openMobileDrawer('nodes');">Go to Canvas</button>
+        </div>
+    </div>
+
+</div><!-- /screen-compiler -->
+
+<!-- =============================================
+     SETTINGS MODAL (global — accessible from any screen)
+     ============================================= -->
+<div id="settings-overlay" onclick="onSettingsBackdrop(event)">
+    <div class="settings-modal">
+        <div class="settings-header">
+            <span class="settings-header-title">⚙ Settings</span>
+            <span class="close-btn" onclick="closeSettings()" style="font-size:20px;">×</span>
+        </div>
+        <div class="settings-body">
+            <div class="settings-section-label">Build Save</div>
+            <div class="settings-row">
+                <div class="settings-row-info">
+                    <div class="settings-row-label">Save Build</div>
+                    <div class="settings-row-sub">Write current state to browser storage.</div>
+                </div>
+                <button class="settings-btn sbtn-save" id="btn-save" onclick="saveState()">💾 Save</button>
+            </div>
+            <div class="settings-row">
+                <div class="settings-row-info">
+                    <div class="settings-row-label">Load Build</div>
+                    <div class="settings-row-sub">Last saved: <span id="settings-save-time">—</span></div>
+                </div>
+                <button class="settings-btn sbtn-load" onclick="loadState()">⟳ Load</button>
+            </div>
+            <div class="settings-row">
+                <div class="settings-row-info">
+                    <div class="settings-row-label">Clear Save</div>
+                    <div class="settings-row-sub">Wipe all stored data and reset.</div>
+                </div>
+                <button class="settings-btn sbtn-clear" onclick="clearSave()">✕ Clear</button>
+            </div>
+            <div class="settings-section-label" style="margin-top:16px;">Visual</div>
+            <div class="settings-row">
+                <div class="settings-row-info">
+                    <div class="settings-row-label">Reduce Flashing</div>
+                    <div class="settings-row-sub">Dim CRT flicker / damage flash effects.</div>
+                </div>
+                <button class="settings-btn" style="border-color:#444; color:#666;" disabled>Coming Soon</button>
+            </div>
+            <div class="settings-section-label">Sound</div>
+            <div class="settings-row">
+                <div class="settings-row-info">
+                    <div class="settings-row-label">Sound FX</div>
+                    <div class="settings-row-sub">Audio feedback for hack events.</div>
+                </div>
+                <button class="settings-btn" style="border-color:#444; color:#666;" disabled>Coming Soon</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scanlines (always on top) -->
 <div class="scanlines"></div>
 
-<script>
-    // ─────────────────────────────────────────────────────────────────────────
-    // DOM references
-    // ─────────────────────────────────────────────────────────────────────────
-    const canvas        = document.getElementById('gameCanvas');
-    const ctx           = canvas.getContext('2d');
-    const fragDisplay   = document.getElementById('fragment-counter');
-    const levelDisplay  = document.getElementById('level-display');
-    const damageFlash   = document.getElementById('damage-flash');
-    const progressFill  = document.getElementById('progress-fill');
-    const levelupToast  = document.getElementById('levelup-toast');
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Persistent save state (localStorage)
-    // ─────────────────────────────────────────────────────────────────────────
-    let savedFragments = parseInt(localStorage.getItem('neonBreach_fragments')) || 0;
-    let savedData      = parseInt(localStorage.getItem('neonBreach_data'))      || 0;
-    let savedXp        = parseInt(localStorage.getItem('neonBreach_xp'))        || 0;
-
-    function saveData() {
-        localStorage.setItem('neonBreach_fragments', savedFragments);
-        localStorage.setItem('neonBreach_data',      savedData);
-        localStorage.setItem('neonBreach_xp',        savedXp);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Constants & balance values
-    // ─────────────────────────────────────────────────────────────────────────
-    const MAX_HEALTH    = 34.0;
-    const XP_TO_LEVEL   = 500;
-    const BOSS_THRESHOLD = 100;
-    const HACK_TIME_MS  = 1500;   // ms to deal one hack tick
-    const HACK_DAMAGE   = 35;     // hp removed per hack tick
-    const IDLE_DEGEN_BASE  = 0.05; // hp/sec baseline drain
-    const IDLE_DEGEN_SCALE = 0.001; // hp/sec added per second survived
-
-    /** Node type definitions */
-    const NODE_TYPES = {
-        basic:  { size: 30,  hp: 70,  frags: 1,  thorns: 0.5, prog: 5  },
-        medium: { size: 45,  hp: 140, frags: 3,  thorns: 1.5, prog: 15 },
-        boss:   { size: 180, hp: 800, frags: 15, thorns: 4.5, prog: 0  },
-        moon:   { size: 18,  hp: 35,  frags: 1,  thorns: 0.2, prog: 2  },
-    };
-    const NODE_COLORS = {
-        basic:  '#ff007f',
-        medium: '#00e5ff',
-        boss:   '#d500f9',
-        moon:   '#ff007f',
-    };
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Session state
-    // ─────────────────────────────────────────────────────────────────────────
-    let gameState        = 'playing';
-    let playerHealth     = MAX_HEALTH;
-    let sessionFragments = 0;
-    let sessionNodes     = 0;
-    let sessionXp        = 0;
-    let sessionTime      = 0;
-    let bossProgress     = 0;
-    let spawnAccumulator = 0;
-    let lastTime         = performance.now();
-    let prevLevel        = 1;         // for detecting level-ups
-
-    let nodes     = [];
-    let fragments = [];
-
-    // Mouse / touch cursor
-    const mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2, radius: 35 };
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Canvas resize — scales all existing entity positions proportionally
-    // ─────────────────────────────────────────────────────────────────────────
-    let prevWidth  = 0;
-    let prevHeight = 0;
-
-    function resize() {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-
-        if (prevWidth && prevHeight && (prevWidth !== w || prevHeight !== h)) {
-            const sx = w / prevWidth;
-            const sy = h / prevHeight;
-            for (const n of nodes)     { n.x *= sx; n.y *= sy; }
-            for (const f of fragments) { f.x *= sx; f.y *= sy; }
-            mouse.x *= sx;
-            mouse.y *= sy;
-        }
-
-        canvas.width  = w;
-        canvas.height = h;
-        mouse.radius  = Math.max(30, w * 0.04);
-        prevWidth  = w;
-        prevHeight = h;
-    }
-    window.addEventListener('resize', resize);
-    resize();
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Input — mouse & touch
-    // ─────────────────────────────────────────────────────────────────────────
-    function updateMousePos(e) {
-        const src  = e.touches ? e.touches[0] : e;
-        mouse.x = src.clientX;
-        mouse.y = src.clientY;
-    }
-    window.addEventListener('mousemove', updateMousePos);
-    window.addEventListener('touchstart', updateMousePos, { passive: true });
-    window.addEventListener('touchmove', (e) => { e.preventDefault(); updateMousePos(e); }, { passive: false });
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Utilities
-    // ─────────────────────────────────────────────────────────────────────────
-    function formatTime(seconds) {
-        const m = Math.floor(seconds / 60);
-        const s = Math.floor(seconds % 60);
-        return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    }
-
-    function getLevel(totalXp) {
-        return Math.floor(totalXp / XP_TO_LEVEL) + 1;
-    }
-
-    function triggerDamageFlash() {
-        damageFlash.style.opacity = '1';
-        setTimeout(() => { damageFlash.style.opacity = '0'; }, 100);
-    }
-
-    let levelupTimer = null;
-    function triggerLevelUp() {
-        levelupToast.style.opacity = '1';
-        clearTimeout(levelupTimer);
-        levelupTimer = setTimeout(() => { levelupToast.style.opacity = '0'; }, 1200);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Node class
-    // ─────────────────────────────────────────────────────────────────────────
-    class Node {
-        /**
-         * @param {string|null} typeOverride - Force a specific node type, or null for random.
-         * @param {boolean}     isMoon       - True if this is a moon (orbit) node.
-         */
-        constructor(typeOverride = null, isMoon = false) {
-            // ── Resolve type ──────────────────────────────────────────
-            if (typeOverride) {
-                this.type = typeOverride;
-            } else if (isMoon) {
-                this.type = 'moon';
-            } else {
-                // 65% basic, 35% medium
-                this.type = Math.random() > 0.65 ? 'medium' : 'basic';
-            }
-
-            const cfg   = NODE_TYPES[this.type];
-            this.size   = cfg.size;
-            this.health = cfg.hp;
-            this.maxHealth  = cfg.hp;
-            this.color      = NODE_COLORS[this.type];
-            this.dropAmount = cfg.frags;
-            this.baseThorns = cfg.thorns;
-            this.progValue  = cfg.prog;
-
-            this.angle    = Math.random() * Math.PI * 2;
-            this.rotSpeed = (Math.random() - 0.5) * 0.02;
-
-            // Orbit properties (moons only)
-            this.parent      = null;   // parent Node reference (or null)
-            this.orbitRadius = 0;
-            this.orbitSpeed  = 0;
-            this.orbitAngle  = 0;      // current orbit angle in radians
-
-            // Hack state
-            this.hackTimer = 0;
-            this.flash     = 0;        // frames of white-flash remaining
-
-            // ── Spawn position ────────────────────────────────────────
-            if (isMoon) {
-                // Position is set by the parent after construction
-                this.x = -1000; this.y = -1000;
-            } else {
-                const margin = this.size + 20;
-                const edge   = Math.floor(Math.random() * 4);
-                if (edge === 0) {
-                    this.x = Math.random() * canvas.width;  this.y = -margin;
-                } else if (edge === 1) {
-                    this.x = canvas.width + margin;          this.y = Math.random() * canvas.height;
-                } else if (edge === 2) {
-                    this.x = Math.random() * canvas.width;  this.y = canvas.height + margin;
-                } else {
-                    this.x = -margin;                        this.y = Math.random() * canvas.height;
-                }
-            }
-
-            // ── Initial velocity — drift toward screen centre region ──
-            const targetX = canvas.width  / 2 + (Math.random() - 0.5) * canvas.width  * 0.6;
-            const targetY = canvas.height / 2 + (Math.random() - 0.5) * canvas.height * 0.6;
-            const dir     = Math.atan2(targetY - this.y, targetX - this.x);
-            const speedMult = this.type === 'boss' ? 0.2 : 1;
-            const speed     = (40 + Math.random() * 40) * speedMult;
-            this.vx = Math.cos(dir) * speed;
-            this.vy = Math.sin(dir) * speed;
-        }
-
-        /** @param {number} dt - Delta time in seconds */
-        update(dt) {
-            if (this.parent !== null) {
-                // Orbit around parent
-                this.orbitAngle += this.orbitSpeed * dt;
-                this.x = this.parent.x + Math.cos(this.orbitAngle) * this.orbitRadius;
-                this.y = this.parent.y + Math.sin(this.orbitAngle) * this.orbitRadius;
-                // Inherit parent velocity for collision broadphase consistency
-                this.vx = this.parent.vx;
-                this.vy = this.parent.vy;
-            } else {
-                // Free movement
-                this.x += this.vx * dt;
-                this.y += this.vy * dt;
-
-                // Bounce when far off-screen (keeps stragglers in play)
-                const bound = 300;
-                if (this.x < -bound || this.x > canvas.width  + bound) this.vx *= -1;
-                if (this.y < -bound || this.y > canvas.height + bound) this.vy *= -1;
-            }
-
-            // Spin
-            this.angle += this.rotSpeed;
-
-            // Decorative ring angle (used in draw — not the same as orbit motion)
-            // Only increment this independent of orbit so it doesn't double-count for moons.
-            if (this.parent === null) this.orbitAngle += dt * 2;
-
-            // Decay flash counter
-            if (this.flash > 0) this.flash -= dt * 60;
-        }
-
-        /** @param {boolean} isHovered - Whether the player cursor overlaps this node */
-        draw(isHovered) {
-            const flashing = this.flash > 0;
-
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            ctx.rotate(this.angle);
-
-            // ── Filled hexagon body ───────────────────────────────────
-            ctx.shadowBlur  = isHovered ? (this.type === 'boss' ? 50 : 30) : 15;
-            ctx.shadowColor = this.color;
-            ctx.fillStyle   = flashing ? '#ffffff' : this.color;
-            ctx.globalAlpha = 0.3 + (this.health / this.maxHealth) * 0.5;
-
-            ctx.beginPath();
-            for (let i = 0; i < 6; i++) {
-                const a = (Math.PI / 3) * i;
-                ctx.lineTo((this.size / 2) * Math.cos(a), (this.size / 2) * Math.sin(a));
-            }
-            ctx.closePath();
-            ctx.fill();
-
-            // ── Hexagon outline ───────────────────────────────────────
-            ctx.strokeStyle = flashing ? '#ffffff' : '#fff';
-            ctx.lineWidth   = this.type === 'boss' ? 3 : 1.5;
-            ctx.globalAlpha = 0.8;
-            ctx.stroke();
-
-            // ── Inner triangle glyph ──────────────────────────────────
-            ctx.beginPath();
-            ctx.moveTo(0,               this.size / 4);
-            ctx.lineTo(-this.size / 4.5, -this.size / 5);
-            ctx.lineTo( this.size / 4.5, -this.size / 5);
-            ctx.closePath();
-            ctx.stroke();
-
-            // ── Orbiting orb decorations (non-moon nodes only) ────────
-            if (this.parent === null && this.type !== 'moon') {
-                ctx.globalAlpha = 1.0;
-                const orbCount = this.type === 'boss' ? 8 : 3;
-                const orbDist  = this.size * 0.7;
-                for (let i = 0; i < orbCount; i++) {
-                    const a = (Math.PI * 2 / orbCount) * i + this.orbitAngle;
-                    ctx.beginPath();
-                    ctx.arc(orbDist * Math.cos(a), orbDist * Math.sin(a), this.type === 'boss' ? 6 : 3, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
-
-            // ── Target brackets when hovered ──────────────────────────
-            if (isHovered) {
-                ctx.shadowBlur   = 0;
-                ctx.strokeStyle  = '#00e5ff';
-                ctx.lineWidth    = this.type === 'boss' ? 4 : 2;
-                const off = this.size * 0.85;
-                const len = this.type === 'boss' ? 30 : 8;
-
-                ctx.beginPath();
-                ctx.moveTo(-off, -off + len); ctx.lineTo(-off, -off); ctx.lineTo(-off + len, -off);
-                ctx.moveTo( off - len, -off); ctx.lineTo( off, -off); ctx.lineTo( off, -off + len);
-                ctx.moveTo( off,  off - len); ctx.lineTo( off,  off); ctx.lineTo( off - len,  off);
-                ctx.moveTo(-off + len,  off); ctx.lineTo(-off,  off); ctx.lineTo(-off,  off - len);
-                ctx.stroke();
-            }
-
-            ctx.restore();
-
-            // ── Health bar (shown when damaged or hovered) ────────────
-            if (this.health < this.maxHealth || isHovered) {
-                const barW   = this.size * 0.8;
-                const barH   = this.type === 'boss' ? 8 : 4;
-                const yOff   = -this.size / 1.5 - (this.type === 'boss' ? 25 : 12);
-                const pct    = Math.max(0, this.health / this.maxHealth);
-
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                ctx.shadowBlur = 0;
-                ctx.fillStyle  = 'rgba(255,0,127,0.2)';
-                ctx.fillRect(-barW / 2, yOff, barW, barH);
-                ctx.fillStyle = this.color;
-                ctx.fillRect(-barW / 2, yOff, barW * pct, barH);
-                ctx.restore();
-            }
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Fragment class — collectible pickup that homes toward the HUD counter
-    // ─────────────────────────────────────────────────────────────────────────
-    class Fragment {
-        constructor(x, y) {
-            this.x    = x;
-            this.y    = y;
-            this.vx   = (Math.random() - 0.5) * 600;
-            this.vy   = (Math.random() - 0.5) * 600;
-            this.size = Math.random() * 4 + 6;
-            this.life = 0;
-            this.rot  = Math.random() * Math.PI;
-            this.homing = false;
-
-            // Target: the fragment-counter element's screen position
-            // Resolved once per fragment so it's always accurate.
-            const rect = fragDisplay.getBoundingClientRect();
-            this.targetX = rect.left + rect.width  / 2;
-            this.targetY = rect.top  + rect.height / 2;
-        }
-
-        /**
-         * @param {number} dt - Delta time in seconds
-         * @returns {boolean} true when the fragment should be collected
-         */
-        update(dt) {
-            this.life += dt;
-            this.rot  += dt * 2;
-
-            if (!this.homing) {
-                // Burst outward, then decelerate
-                this.x  += this.vx * dt;
-                this.y  += this.vy * dt;
-                this.vx *= 0.88;
-                this.vy *= 0.88;
-                if (this.life > 0.4) this.homing = true;
-            } else {
-                // Home toward the fragment counter in the HUD
-                const dx = this.targetX - this.x;
-                const dy = this.targetY - this.y;
-                const d  = Math.hypot(dx, dy);
-                if (d < 15) return true;   // collected
-                const speed = 1200 * dt;
-                this.x += (dx / d) * speed;
-                this.y += (dy / d) * speed;
-            }
-            return false;
-        }
-
-        draw() {
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            ctx.rotate(this.rot);
-            ctx.fillStyle   = '#00e5ff';
-            ctx.shadowBlur  = 10;
-            ctx.shadowColor = '#00e5ff';
-
-            ctx.beginPath();
-            for (let i = 0; i < 6; i++) {
-                const a = (Math.PI / 3) * i;
-                ctx.lineTo((this.size / 2) * Math.cos(a), (this.size / 2) * Math.sin(a));
-            }
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Spawn helpers
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Spawns a primary node and attaches moon-orbit satellites.
-     * @param {string|null} typeOverride - 'boss' to force a boss node.
-     */
-    function spawnNodeWithMoons(typeOverride = null) {
-        const n = new Node(typeOverride);
-        nodes.push(n);
-
-        if (n.type === 'medium' || n.type === 'boss') {
-            const moonCount = n.type === 'boss'
-                ? Math.floor(Math.random() * 4) + 3
-                : Math.floor(Math.random() * 3) + 1;
-
-            for (let i = 0; i < moonCount; i++) {
-                const moon = new Node(null, true);
-                moon.parent      = n;
-                moon.orbitRadius = n.size / 2 + moon.size / 2 + 12 + Math.random() * 20;
-                moon.orbitSpeed  = (Math.random() > 0.5 ? 1 : -1) * (0.3 + Math.random() * 0.4);
-                moon.orbitAngle  = (Math.PI * 2 / moonCount) * i;
-
-                // Set initial world position so the moon doesn't flash at origin
-                moon.x = n.x + Math.cos(moon.orbitAngle) * moon.orbitRadius;
-                moon.y = n.y + Math.sin(moon.orbitAngle) * moon.orbitRadius;
-
-                nodes.push(moon);
-            }
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Round management
-    // ─────────────────────────────────────────────────────────────────────────
-
-    function endRound() {
-        if (gameState === 'modal') return;   // guard against double-call
-        gameState = 'modal';
-
-        // Tally session rewards into persistent save
-        savedFragments += sessionFragments;
-        const newData   = Math.floor(savedFragments / 3);
-        savedData      += newData;
-        savedFragments  = savedFragments % 3;
-        savedXp        += sessionXp;
-        saveData();
-
-        // Populate modal stats
-        document.getElementById('stat-time').textContent         = formatTime(sessionTime);
-        document.getElementById('stat-nodes').textContent        = sessionNodes;
-        document.getElementById('stat-session-frags').textContent = `+${sessionFragments}`;
-        document.getElementById('stat-banked-data').textContent  = savedData;
-        document.getElementById('stat-xp').textContent           = savedXp;
-
-        document.getElementById('modal-overlay').style.display = 'flex';
-    }
-
-    function startNewRound() {
-        // Reset session state
-        playerHealth     = MAX_HEALTH;
-        sessionFragments = 0;
-        sessionNodes     = 0;
-        sessionXp        = 0;
-        sessionTime      = 0;
-        bossProgress     = 0;
-        spawnAccumulator = 0;
-        prevLevel        = getLevel(savedXp);
-
-        nodes     = [];
-        fragments = [];
-
-        progressFill.style.width = '0%';
-
-        // Initial wave of 3 nodes
-        for (let i = 0; i < 3; i++) spawnNodeWithMoons();
-
-        document.getElementById('modal-overlay').style.display = 'none';
-        gameState = 'playing';
-        lastTime  = performance.now();
-        requestAnimationFrame(loop);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Main game loop
-    // ─────────────────────────────────────────────────────────────────────────
-
-    function loop(now) {
-        if (gameState !== 'playing') return;
-
-        const dt = Math.min((now - lastTime) / 1000, 0.1); // cap at 100ms to prevent spiral-of-death
-        lastTime = now;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // ── Timer ─────────────────────────────────────────────────────
-        sessionTime += dt;
-        document.getElementById('time-display').textContent = formatTime(sessionTime);
-
-        // ── Passive health drain (scales slowly over time) ────────────
-        const idleDegen = IDLE_DEGEN_BASE + sessionTime * IDLE_DEGEN_SCALE;
-        playerHealth -= idleDegen * dt;
-
-        // ── Spawn pacing ──────────────────────────────────────────────
-        // Count only primary (non-moon) nodes for the cap.
-        const primaryCount    = nodes.filter(n => n.parent === null && n.type !== 'moon').length;
-        const maxPrimary      = 8 + Math.floor(sessionTime * 1.2);
-        const spawnsPerSecond = 1.0 + sessionTime * 0.1;
-
-        spawnAccumulator += spawnsPerSecond * dt;
-        while (spawnAccumulator >= 1.0) {
-            if (primaryCount < maxPrimary) spawnNodeWithMoons();
-            spawnAccumulator -= 1.0;
-        }
-
-        // ── Difficulty scalar (time-based damage multiplier) ──────────
-        const timeMult = 1 + sessionTime * 0.015;
-
-        // ── Update & interact with nodes ──────────────────────────────
-        let highestHackProg  = 0;   // used to draw cursor arc
-        let tookBurstDamage  = false;
-
-        for (let i = nodes.length - 1; i >= 0; i--) {
-            const n    = nodes[i];
-            n.update(dt);
-
-            const dist   = Math.hypot(n.x - mouse.x, n.y - mouse.y);
-            const inRange = dist <= mouse.radius + n.size / 2;
-
-            if (inRange) {
-                // Continuous proximity damage
-                playerHealth -= 0.4 * timeMult * dt;
-
-                // Hack tick — charges over HACK_TIME_MS ms
-                n.hackTimer += dt * 1000;
-                if (n.hackTimer >= HACK_TIME_MS) {
-                    n.health    -= HACK_DAMAGE;
-                    n.flash      = 5;
-                    n.hackTimer  = 0;
-                    playerHealth -= n.baseThorns * timeMult;
-                    tookBurstDamage = true;
-
-                    if (n.health <= 0) {
-                        // Node destroyed
-                        sessionNodes++;
-                        bossProgress += n.progValue;
-
-                        // Spawn boss if threshold met
-                        if (bossProgress >= BOSS_THRESHOLD) {
-                            bossProgress = 0;
-                            spawnNodeWithMoons('boss');
-                        }
-                        progressFill.style.width = Math.min((bossProgress / BOSS_THRESHOLD) * 100, 100) + '%';
-
-                        // Drop fragments
-                        for (let f = 0; f < n.dropAmount; f++) {
-                            fragments.push(new Fragment(n.x, n.y));
-                        }
-
-                        // Remove this node — if it was a parent, orphan its moons
-                        // (orphaned moons will drift freely until destroyed)
-                        for (const other of nodes) {
-                            if (other.parent === n) other.parent = null;
-                        }
-                        nodes.splice(i, 1);
-                        continue;
-                    }
-                }
-
-                highestHackProg = Math.max(highestHackProg, n.hackTimer);
-            }
-
-            n.draw(inRange);
-        }
-
-        if (tookBurstDamage) triggerDamageFlash();
-
-        // ── Update & collect fragments ─────────────────────────────────
-        for (let i = fragments.length - 1; i >= 0; i--) {
-            if (fragments[i].update(dt)) {
-                sessionFragments++;
-                sessionXp += 2;
-                fragments.splice(i, 1);
-            } else {
-                fragments[i].draw();
-            }
-        }
-
-        // ── Death check ───────────────────────────────────────────────
-        if (playerHealth <= 0) {
-            playerHealth = 0;
-            updateHUD(0);
-            endRound();
-            return;
-        }
-
-        // ── HUD update ────────────────────────────────────────────────
-        updateHUD(dt);
-
-        // ── Draw cursor ───────────────────────────────────────────────
-        drawCursor(now, highestHackProg);
-
-        requestAnimationFrame(loop);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // HUD update helper (keeps the loop body lean)
-    // ─────────────────────────────────────────────────────────────────────────
-    function updateHUD() {
-        // Health bar
-        const hPct = (playerHealth / MAX_HEALTH) * 100;
-        document.getElementById('health-fill').style.width = hPct + '%';
-        document.getElementById('health-text').textContent =
-            `${playerHealth.toFixed(1)}/${MAX_HEALTH.toFixed(1)}`;
-
-        // Fragment counter
-        fragDisplay.textContent = `DATA_FRAGS: ${sessionFragments}`;
-
-        // XP bar & level
-        const totalXp   = savedXp + sessionXp;
-        const level     = getLevel(totalXp);
-        const xpInLevel = totalXp % XP_TO_LEVEL;
-        const xpPct     = Math.min((xpInLevel / XP_TO_LEVEL) * 100, 100).toFixed(0);
-        document.getElementById('xp-fill').style.width   = xpPct + '%';
-        document.getElementById('xp-text').textContent   = xpPct + '%';
-        levelDisplay.textContent = `LVL ${level}`;
-
-        // Level-up notification
-        if (level > prevLevel) {
-            prevLevel = level;
-            triggerLevelUp();
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Cursor drawing helper
-    // ─────────────────────────────────────────────────────────────────────────
-    function drawCursor(now, hackProgress) {
-        ctx.save();
-
-        // Pulsing ring
-        const pulse = 0.4 + 0.4 * Math.sin(now / 150);
-        ctx.beginPath();
-        ctx.arc(mouse.x, mouse.y, mouse.radius, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(0, 229, 255, ${pulse})`;
-        ctx.lineWidth   = 2;
-        ctx.stroke();
-
-        // Hack-progress arc
-        if (hackProgress > 0) {
-            const start = -Math.PI / 2;
-            const end   = start + (hackProgress / HACK_TIME_MS) * Math.PI * 2;
-
-            // Track background
-            ctx.beginPath();
-            ctx.arc(mouse.x, mouse.y, mouse.radius + 6, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(0, 229, 255, 0.15)';
-            ctx.lineWidth   = 4;
-            ctx.stroke();
-
-            // Progress arc
-            ctx.beginPath();
-            ctx.arc(mouse.x, mouse.y, mouse.radius + 6, start, end);
-            ctx.strokeStyle = '#00e5ff';
-            ctx.lineCap     = 'round';
-            ctx.lineWidth   = 4;
-            ctx.stroke();
-        }
-
-        // Centre dot
-        ctx.fillStyle = '#00e5ff';
-        ctx.fillRect(mouse.x - 2, mouse.y - 2, 4, 4);
-
-        ctx.restore();
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Boot — initial wave, then start loop
-    // ─────────────────────────────────────────────────────────────────────────
-    for (let i = 0; i < 3; i++) spawnNodeWithMoons();
-    requestAnimationFrame(loop);
-</script>
+<script src="hackbuster.js"></script>
 </body>
 </html>
