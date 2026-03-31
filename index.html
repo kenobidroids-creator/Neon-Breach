@@ -3,996 +3,2731 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NODEBUSTER // NEON BREACH</title>
+    <title>NEON_BREACH // COMPILE</title>
     <style>
+        /* =============================================
+           CSS VARIABLES & RESET
+           ============================================= */
         :root {
             --neon-blue:   #00e5ff;
             --neon-pink:   #ff007f;
             --neon-purple: #d500f9;
-            --bg:          #05050a;
+            --neon-gold:   #edc531;
+            --neon-green:  #39ff14;
+            --bg-dark:     #05050a;
+            --bg-panel:    #08080f;
+            --bg-panel2:   #0a0a15;
+            --grid-line:   rgba(0, 229, 255, 0.04);
+            --border-dim:  #1e1e2e;
+            --text-dim:    #556;
+            --text-mid:    #889;
+            --slot-size:   68px;
+            --slot-gap:    7px;
+
+            /* Panel collapse widths */
+            --left-w:      300px;
+            --right-w:     280px;
         }
 
-        /* ── Reset & base ──────────────────────────────────────────── */
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            margin: 0; padding: 0;
-            background: var(--bg);
-            color: #ddd;
+            background: var(--bg-dark);
+            color: #ccc;
             font-family: 'Courier New', Courier, monospace;
             overflow: hidden;
             user-select: none;
-            touch-action: none;
-            cursor: none;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
         }
 
-        /* ── Canvas ─────────────────────────────────────────────────── */
-        #gameCanvas { display: block; }
+        /* =============================================
+           TOP BAR
+           ============================================= */
+        #top-bar {
+            height: 44px;
+            background: #090912;
+            border-bottom: 1px solid #1a1a2e;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            z-index: 30;
+            flex-shrink: 0;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.6);
+        }
 
-        /* ── HUD overlay ────────────────────────────────────────────── */
-        #ui-layer {
-            position: absolute; inset: 0;
-            pointer-events: none;
-            padding: 20px;
+        .nav-brand {
+            font-size: 13px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            color: #fff;
+            text-shadow: 0 0 12px var(--neon-blue);
+        }
+
+        .nav-brand span { color: var(--neon-blue); }
+
+        .desktop-nav-group { display: flex; gap: 2px; align-items: center; }
+
+        .nav-btn {
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: var(--text-mid);
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            cursor: pointer;
+            padding: 0 16px;
+            height: 44px;
+            text-transform: uppercase;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        .nav-btn:hover { color: #fff; }
+        .nav-btn.active {
+            color: var(--neon-pink);
+            border-bottom-color: var(--neon-pink);
+            text-shadow: 0 0 8px var(--neon-pink);
+        }
+
+        /* =============================================
+           MAIN LAYOUT
+           ============================================= */
+        #main-layout {
+            display: flex;
+            flex-direction: row;
+            flex-grow: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #center-panel {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* =============================================
+           COLLAPSIBLE SIDE PANELS
+           ============================================= */
+        .side-panel {
+            background: var(--bg-panel);
+            display: flex;
+            flex-direction: column;
+            z-index: 20;
+            transition: width 0.25s cubic-bezier(0.4,0,0.2,1);
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        #left-panel {
+            width: var(--left-w);
+            border-right: 1px solid var(--border-dim);
+            box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+        }
+        #left-panel.collapsed { width: 0; border-right-width: 0; }
+
+        #right-panel {
+            width: var(--right-w);
+            border-left: 1px solid var(--border-dim);
+            box-shadow: -4px 0 24px rgba(0,0,0,0.5);
+        }
+        #right-panel.collapsed { width: 0; border-left-width: 0; }
+
+        /* Panel Toggle Buttons */
+        .panel-toggle {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 18px;
+            height: 44px;
+            background: var(--bg-panel2);
+            border: 1px solid var(--border-dim);
+            color: var(--text-dim);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            z-index: 25;
+            transition: color 0.2s, background 0.2s;
+        }
+        .panel-toggle:hover { color: var(--neon-blue); background: #0f0f1e; }
+
+        #toggle-left {
+            right: -18px;
+            border-radius: 0 4px 4px 0;
+            border-left: none;
+        }
+        #left-panel.collapsed #toggle-left {
+            right: -18px; /* stays on right edge of 0-width panel, pushed out */
+        }
+
+        #toggle-right {
+            left: -18px;
+            border-radius: 4px 0 0 4px;
+            border-right: none;
+        }
+
+        /* Panel inner wrapper — holds content, hidden when collapsed */
+        .panel-inner {
+            width: var(--left-w); /* fixed inner width so content doesn't reflow */
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+        #right-panel .panel-inner { width: var(--right-w); }
+
+        /* =============================================
+           SHARED PANEL CHROME
+           ============================================= */
+        .panel-header {
+            background: #0c0c18;
+            padding: 10px 14px;
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: var(--text-mid);
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border-dim);
             display: flex;
             justify-content: space-between;
-            z-index: 5;
+            align-items: center;
+            flex-shrink: 0;
         }
 
-        .left-ui  { display: flex; flex-direction: column; gap: 15px; }
-        .right-ui { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-
-        /* ── Stat bars ───────────────────────────────────────────────── */
-        .bar-container {
-            width: 250px; height: 24px;
-            border: 2px solid #555;
-            background: rgba(0,0,0,0.6);
-            position: relative;
-            box-shadow: 0 0 8px rgba(0,0,0,0.8);
+        .tab-container {
+            display: flex;
+            border-bottom: 1px solid var(--border-dim);
+            flex-shrink: 0;
         }
-
-        #health-border { border-color: #770033; }
-        #health-fill {
-            height: 100%; width: 100%;
-            background: var(--neon-pink);
-            box-shadow: 0 0 12px var(--neon-pink);
-            transition: width 0.1s linear;
-        }
-
-        #xp-border { border-color: #440066; }
-        #xp-fill {
-            height: 100%; width: 0%;
-            background: var(--neon-purple);
-            box-shadow: 0 0 12px var(--neon-purple);
-            transition: width 0.1s linear;
-        }
-
-        .label {
-            position: absolute; top: -18px; left: 0;
-            font-size: 11px; font-weight: bold; color: #888;
-            text-shadow: 1px 1px 0 #000;
-            letter-spacing: 1px;
-        }
-        .value-text {
-            position: absolute; inset: 0;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 13px; font-weight: bold;
-            color: #fff; text-shadow: 1px 1px 2px #000;
-        }
-
-        /* ── Fragment counter ────────────────────────────────────────── */
-        #fragment-counter {
-            font-size: 20px;
-            color: var(--neon-blue);
-            font-weight: bold;
-            text-shadow: 0 0 10px rgba(0,229,255,0.6);
-            letter-spacing: 1px;
-        }
-
-        /* ── Level display ───────────────────────────────────────────── */
-        #level-display {
-            font-size: 13px;
-            color: var(--neon-purple);
-            text-shadow: 0 0 8px rgba(213,0,249,0.6);
-            letter-spacing: 1px;
-            opacity: 0.85;
-        }
-
-        /* ── Timer ───────────────────────────────────────────────────── */
-        #time-label  { font-size: 11px; color: #666; letter-spacing: 1px; }
-        #time-display {
-            font-size: 26px; font-weight: bold; color: #fff;
-            text-shadow: 0 0 10px rgba(255,255,255,0.5);
-            background: rgba(0,0,0,0.5);
-            padding: 5px 15px;
-            border: 2px solid #333;
-            border-radius: 4px;
-        }
-
-        /* ── Progress bar (bottom) ───────────────────────────────────── */
-        #progress-container {
-            position: absolute; bottom: 10px; left: 5%; width: 90%; height: 12px;
-            border: 2px solid #333;
-            background: rgba(0,0,0,0.8);
-            box-shadow: 0 0 10px rgba(0,0,0,0.9);
-            z-index: 5;
-        }
-        #progress-fill {
-            height: 100%; width: 0%;
-            background: #fff;
-            box-shadow: 0 0 15px #fff;
-            transition: width 0.2s linear;
-        }
-        #progress-label {
-            position: absolute; top: -20px; left: 0;
-            font-size: 11px; font-weight: bold;
-            color: #666; letter-spacing: 1px;
-        }
-
-        /* ── Level-up toast ──────────────────────────────────────────── */
-        #levelup-toast {
-            position: fixed; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 32px; font-weight: bold;
-            color: var(--neon-purple);
-            text-shadow: 0 0 20px var(--neon-purple);
-            letter-spacing: 4px;
-            pointer-events: none; z-index: 18;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-
-        /* ── Damage flash ────────────────────────────────────────────── */
-        #damage-flash {
-            position: fixed; inset: 0;
-            background: rgba(255,0,127,0.22);
-            pointer-events: none; z-index: 15;
-            opacity: 0;
-            transition: opacity 0.1s;
-        }
-
-        /* ── End-round modal ─────────────────────────────────────────── */
-        #modal-overlay {
-            position: fixed; inset: 0;
-            background: rgba(5,5,10,0.85);
-            display: none;
-            justify-content: center; align-items: center;
-            z-index: 20;
-            pointer-events: auto;
-            cursor: default;
-            backdrop-filter: blur(4px);
-        }
-        .modal-content {
-            background: rgba(15,15,20,0.6);
-            border: 2px solid var(--neon-pink);
-            border-radius: 4px;
-            padding: 30px;
-            width: 90%; max-width: 500px;
+        .tab {
+            flex: 1;
+            padding: 9px 6px;
             text-align: center;
-            box-shadow:
-                0 0 30px rgba(255,0,127,0.3),
-                inset 0 0 20px rgba(255,0,127,0.1);
+            cursor: pointer;
+            background: transparent;
+            color: var(--text-dim);
+            font-family: inherit;
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border: none;
+            border-right: 1px solid var(--border-dim);
+            transition: all 0.15s;
         }
-        .modal-title {
-            font-size: 28px; font-weight: bold;
-            margin-bottom: 15px;
-            color: var(--neon-pink);
-            text-shadow: 0 0 10px rgba(255,0,127,0.6);
-            letter-spacing: 2px;
+        .tab:last-child { border-right: none; }
+        .tab:hover { color: #aaa; background: rgba(255,255,255,0.02); }
+        .tab.active {
+            color: var(--neon-gold);
+            border-bottom: 2px solid var(--neon-gold);
+            background: rgba(237,197,49,0.05);
         }
-        .modal-subtitle {
-            font-size: 13px; color: #888;
-            margin-bottom: 25px;
-            border-bottom: 1px solid #333;
-            padding-bottom: 15px;
-            letter-spacing: 0.5px;
+
+        .scroll-section {
+            padding: 10px;
+            flex-grow: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
-        .stats-grid {
+        .scroll-section::-webkit-scrollbar { width: 4px; }
+        .scroll-section::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 2px; }
+
+        .close-btn {
+            color: var(--text-dim);
+            font-size: 22px;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0 6px;
+        }
+        .close-btn:hover { color: #fff; }
+
+        /* =============================================
+           LEFT PANEL — STASH
+           ============================================= */
+        /* Fragment / Compiled grid — vertical wrap */
+        .grid-layout {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 28px;
+            grid-template-columns: repeat(auto-fill, minmax(var(--slot-size), 1fr));
+            gap: var(--slot-gap);
+            align-content: start;
         }
-        .stat-span { grid-column: span 2; }
-        .stat-box {
-            background: rgba(0,0,0,0.5);
+
+        .grid-item {
+            width: 100%;
+            aspect-ratio: 1;
+            background: #0d0d18;
+            border: 1px solid #2a2a3a;
+            border-radius: 3px;
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 3px;
+            transition: border-color 0.15s, box-shadow 0.15s;
+            overflow: hidden;
+        }
+        .grid-item:hover {
+            border-color: #555;
+            box-shadow: inset 0 0 12px rgba(255,255,255,0.06);
+        }
+        .grid-item.type-event-border  { border-bottom: 3px solid var(--neon-pink); }
+        .grid-item.type-action-border { border-bottom: 3px solid var(--neon-blue); }
+        .grid-item.type-flow-border   { border-bottom: 3px solid var(--neon-gold); }
+
+        .item-icon      { font-size: 17px; }
+        .item-title     { font-size: 8px; color: #bbb; text-transform: uppercase; text-align: center; padding: 0 4px; line-height: 1.2; word-break: break-word; }
+        .item-line-lbl  { font-size: 8px; color: var(--text-dim); text-transform: uppercase; }
+        .item-count     { position: absolute; top: 2px; right: 4px; color: var(--neon-gold); font-size: 9px; font-weight: bold; }
+        .item-tier      { position: absolute; top: 2px; left: 4px; color: var(--neon-blue); font-size: 9px; font-weight: bold; }
+
+        .hint-label {
+            font-size: 10px;
+            color: var(--text-dim);
+            letter-spacing: 0.5px;
+            line-height: 1.5;
+        }
+
+        /* Macros */
+        .macro-item {
+            background: #0d0d18;
+            border: 1px solid #2a2a3a;
             padding: 12px;
             border-radius: 4px;
-            border: 1px solid #2a2a2a;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
         }
-        .stat-label {
-            font-size: 11px; color: #666;
+        .macro-item:hover { border-color: var(--neon-blue); background: rgba(0,229,255,0.06); }
+        .macro-item.disabled { opacity: 0.45; cursor: not-allowed; }
+        .macro-item.disabled:hover { background: #0d0d18; border-color: #2a2a3a; }
+        .macro-title { color: var(--neon-blue); font-size: 12px; font-weight: bold; margin-bottom: 4px; }
+        .macro-desc  { color: var(--text-mid); font-size: 10px; line-height: 1.5; }
+        .macro-reqs  { margin-top: 8px; border-top: 1px solid #222; padding-top: 8px; font-size: 9px; color: #555; line-height: 1.8; }
+
+        /* =============================================
+           RIGHT PANEL — INSPECTOR
+           ============================================= */
+        #inspector-default {
+            color: var(--text-dim);
+            text-align: center;
+            margin-top: 40px;
+            font-size: 11px;
+            font-style: italic;
+            letter-spacing: 0.5px;
+            line-height: 1.8;
+        }
+        #inspector-content { display: none; flex-direction: column; gap: 12px; }
+
+        .inspector-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #fff;
+            border-bottom: 1px solid var(--border-dim);
+            padding-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .tier-badge {
+            font-size: 10px;
+            color: var(--neon-gold);
+            background: rgba(237,197,49,0.1);
+            padding: 2px 7px;
+            border-radius: 3px;
+            border: 1px solid rgba(237,197,49,0.2);
+        }
+        .stat-block {
+            background: #0a0a14;
+            padding: 10px 12px;
+            border-radius: 4px;
+            border: 1px solid #1e1e2e;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
             margin-bottom: 5px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            font-size: 11px;
         }
-        .stat-value { font-size: 20px; font-weight: bold; color: #fff; }
-        .stat-data   { color: var(--neon-blue);   text-shadow: 0 0 8px var(--neon-blue);   }
-        .stat-xp     { color: var(--neon-purple);  text-shadow: 0 0 8px var(--neon-purple); }
+        .stat-row:last-child { margin-bottom: 0; }
+        .stat-label { color: var(--text-dim); text-transform: uppercase; font-size: 9px; letter-spacing: 1px; align-self: center; }
+        .stat-val   { font-weight: bold; }
+        .val-base   { color: var(--text-mid); }
+        .val-mod    { color: var(--neon-gold); }
+        .val-total  { color: var(--neon-blue); font-size: 13px; }
+
+        .code-preview {
+            background: #000;
+            padding: 10px 12px;
+            border-radius: 4px;
+            border: 1px solid #1a1a2e;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            color: #bbb;
+            box-shadow: inset 0 0 12px rgba(0,0,0,0.8);
+        }
+
+        /* Syntax highlight classes */
+        .c-kw { color: var(--neon-pink); }
+        .c-fn { color: var(--neon-blue); }
+        .c-vr { color: #fff; }
+        .c-cm { color: #444; }
+        .c-nb { color: var(--text-mid); }
+        .c-nm { color: var(--neon-gold); font-weight: bold; }
+
+        .insp-desc {
+            font-size: 10px;
+            color: var(--text-mid);
+            font-style: italic;
+            line-height: 1.6;
+        }
+
+        /* =============================================
+           CENTER VIEWS
+           ============================================= */
+        .view-container {
+            display: none;
+            flex-grow: 1;
+            flex-direction: column;
+            overflow: hidden;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-dark);
+        }
+        .view-container.active { display: flex; }
+
+        /* =============================================
+           IDE VIEW
+           ============================================= */
+        #ide-layout {
+            display: flex;
+            flex-direction: row;
+            height: 100%;
+        }
+
+        #ide-sidebar {
+            width: 220px;
+            border-right: 1px solid var(--border-dim);
+            background: #070710;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .blueprint-item {
+            padding: 12px 14px;
+            border-bottom: 1px solid #111;
+            cursor: pointer;
+            color: var(--text-mid);
+            font-size: 11px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.15s, color 0.15s;
+        }
+        .blueprint-item:hover { background: #0e0e1a; color: #ccc; }
+        .blueprint-item.active {
+            background: rgba(0, 229, 255, 0.07);
+            color: var(--neon-blue);
+            border-left: 2px solid var(--neon-blue);
+        }
+
+        #ide-main {
+            flex-grow: 1;
+            padding: 24px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow: hidden;
+        }
+
+        .ide-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            border-bottom: 1px solid #1a1a2e;
+            padding-bottom: 12px;
+            flex-shrink: 0;
+        }
+
+        #ide-title { font-size: 18px; font-weight: bold; color: #fff; letter-spacing: 1px; }
+        #ide-status { font-size: 9px; color: var(--neon-gold); text-transform: uppercase; letter-spacing: 2px; margin-top: 4px; }
+
+        .auto-btn {
+            padding: 6px 14px;
+            font-family: inherit;
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            background: rgba(237, 197, 49, 0.08);
+            border: 1px solid rgba(237, 197, 49, 0.4);
+            color: var(--neon-gold);
+            text-transform: uppercase;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+        .auto-btn:hover {
+            background: rgba(237, 197, 49, 0.18);
+            box-shadow: 0 0 12px rgba(237,197,49,0.3);
+        }
+
+        .code-editor {
+            font-size: 13px;
+            line-height: 1.9;
+            color: #bbb;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        .code-editor::-webkit-scrollbar { width: 4px; }
+        .code-editor::-webkit-scrollbar-thumb { background: #222; }
+
+        .ide-line-container { display: flex; margin-bottom: 2px; align-items: center; }
+        .ide-line-num { width: 28px; color: #333; text-align: right; margin-right: 14px; user-select: none; font-size: 11px; flex-shrink: 0; }
+        .ide-line { white-space: pre; }
+        .ide-line.ghost { opacity: 0.2; }
+        .ide-line.filled { opacity: 1; text-shadow: 0 0 4px rgba(255,255,255,0.15); }
+        /* Typing animation — must add class AFTER reflow to trigger */
+        .ide-line.typing {
+            display: inline-block;
+            overflow: hidden;
+            white-space: nowrap;
+            opacity: 1;
+            animation: typing-anim 0.55s steps(40, end) forwards;
+        }
+        @keyframes typing-anim { from { max-width: 0; } to { max-width: 100%; } }
+
+        #ide-console {
+            height: 130px;
+            background: #000;
+            border: 1px solid #1a1a2e;
+            border-radius: 4px;
+            padding: 12px 14px;
+            font-size: 11px;
+            color: #0f0;
+            overflow-y: auto;
+            box-shadow: inset 0 0 12px rgba(0,0,0,0.9);
+            flex-shrink: 0;
+            line-height: 1.7;
+        }
+        #ide-console::-webkit-scrollbar { width: 3px; }
+        #ide-console::-webkit-scrollbar-thumb { background: #1a1a1a; }
+
+        /* =============================================
+           WORKSPACE VIEW
+           ============================================= */
+        #workspace-canvas-area {
+            position: relative;
+            flex-grow: 1;
+            background-color: #04040a;
+            cursor: grab;
+            overflow: hidden;
+        }
+        #workspace-canvas-area:active { cursor: grabbing; }
+
+        #canvas-inner {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            transform-origin: 0 0;
+            /* Grid lines */
+            background-size: 40px 40px;
+            background-image:
+                linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+                linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+        }
+
+        #wire-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            overflow: visible;
+        }
+
+        /* Wires */
+        .wire {
+            fill: none;
+            stroke-width: 2.5px;
+            stroke-linecap: round;
+            pointer-events: auto;
+            cursor: pointer;
+            transition: stroke-width 0.15s;
+        }
+        .wire:hover { stroke-width: 5px; filter: drop-shadow(0 0 6px currentColor); }
+        .wire.flow { stroke: var(--neon-gold); }
+        .wire.temp { stroke-dasharray: 6 4; opacity: 0.6; pointer-events: none; }
+
+        /* Nodes */
+        .node {
+            position: absolute;
+            width: 185px;
+            background: rgba(8, 8, 16, 0.96);
+            border: 1px solid #2a2a3a;
+            border-radius: 6px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            cursor: default;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .node.selected {
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 24px rgba(0, 229, 255, 0.18), 0 4px 20px rgba(0,0,0,0.7);
+            z-index: 11 !important;
+        }
+        .node-header {
+            padding: 6px 9px;
+            font-weight: bold;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+            color: #fff;
+            cursor: grab;
+            border-radius: 5px 5px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .type-event  .node-header { background: rgba(255,0,127,0.18);  border-bottom: 1px solid rgba(255,0,127,0.4); }
+        .type-action .node-header { background: rgba(0,229,255,0.15);  border-bottom: 1px solid rgba(0,229,255,0.35); }
+        .type-system .node-header { background: rgba(57,255,20,0.12);  border-bottom: 1px solid rgba(57,255,20,0.3); color: var(--neon-green); }
+        .type-flow   .node-header { background: rgba(237,197,49,0.12); border-bottom: 1px solid rgba(237,197,49,0.3); color: var(--neon-gold); }
+
+        .node-close {
+            color: #555;
+            font-size: 15px;
+            cursor: pointer;
+            padding: 0 3px;
+            border-radius: 2px;
+            transition: color 0.15s;
+        }
+        .node-close:hover { color: var(--neon-pink); }
+
+        /* Ports layout — inputs left, outputs right */
+        .node-body {
+            padding: 8px 10px;
+            display: flex;
+            justify-content: space-between;
+            gap: 4px;
+        }
+        .port-group     { display: flex; flex-direction: column; gap: 10px; }
+        .port-out-group { align-items: flex-end; }
+        .port-row       { display: flex; align-items: center; gap: 6px; font-size: 9px; color: #667; letter-spacing: 0.5px; }
+
+        .port {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: #111;
+            border: 2px solid #444;
+            cursor: crosshair;
+            flex-shrink: 0;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .port.flow { border-color: rgba(237,197,49,0.6); }
+        .port:hover { border-color: #fff; }
+        .port.connected { background: currentColor; box-shadow: 0 0 6px currentColor; }
+
+        /* =============================================
+           MOBILE WORKSPACE TOOLBAR
+           Sits as a proper bar above the canvas —
+           no floating overlay that clips text.
+           ============================================= */
+        #mobile-workspace-toolbar {
+            background: #090912;
+            border-bottom: 1px solid var(--border-dim);
+            flex-shrink: 0;
+            z-index: 5;
+        }
+        .mob-ws-toolbar-inner {
+            display: flex;
+            gap: 8px;
+            padding: 8px 12px;
+            align-items: center;
+        }
+        .mob-ws-btn {
+            background: #0d0d1a;
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            padding: 7px 14px;
+            font-size: 10px;
+            font-family: inherit;
+            font-weight: bold;
+            letter-spacing: 1px;
+            border-radius: 3px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .mob-ws-btn:hover       { background: rgba(0,229,255,0.1); }
+        .mob-ws-btn-gold        { border-color: var(--neon-gold); color: var(--neon-gold); }
+        .mob-ws-btn-gold:hover  { background: rgba(237,197,49,0.1); }
+
+        /* Workspace view must flex-column so toolbar + canvas stack correctly */
+        #view-workspace { flex-direction: column; }
+
+        /* =============================================
+           MOBILE BOTTOM NAV
+           ============================================= */
+        #bottom-nav {
+            height: 56px;
+            background: #08080f;
+            border-top: 1px solid var(--border-dim);
+            display: flex;
+            z-index: 50;
+            flex-shrink: 0;
+        }
+        .mob-nav-btn {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-family: inherit;
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: color 0.2s, background 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+        .mob-nav-btn.active {
+            color: var(--neon-blue);
+            background: rgba(0, 229, 255, 0.04);
+            box-shadow: inset 0 2px 0 var(--neon-blue);
+        }
+
+        /* =============================================
+           MODALS & TOASTS
+           ============================================= */
+        #toast-container {
+            position: fixed;
+            top: 56px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,0,127,0.92);
+            color: #fff;
+            padding: 9px 18px;
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            border-radius: 3px;
+            z-index: 200;
+            opacity: 0;
+            transition: opacity 0.25s;
+            pointer-events: none;
+            white-space: nowrap;
+            box-shadow: 0 2px 12px rgba(255,0,127,0.4);
+        }
+
+        #modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(4,4,10,0.88);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(6px);
+        }
+        .modal-content {
+            background: rgba(12,12,20,0.96);
+            border: 1px solid var(--neon-blue);
+            border-radius: 6px;
+            padding: 28px 32px;
+            width: 88%;
+            max-width: 380px;
+            text-align: center;
+            box-shadow: 0 0 40px rgba(0,229,255,0.2);
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: var(--neon-blue);
+            letter-spacing: 3px;
+        }
+        .modal-sub { color: var(--text-mid); font-size: 12px; margin-bottom: 22px; }
 
         .btn {
-            width: 100%; padding: 14px;
-            font-family: inherit; font-size: 17px; font-weight: bold;
-            color: #fff;
-            background: rgba(0,229,255,0.08);
-            border: 2px solid var(--neon-blue);
-            border-radius: 4px;
+            padding: 10px 18px;
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            color: #ccc;
+            background: #0d0d1a;
+            border: 1px solid #2a2a3a;
+            border-radius: 3px;
             cursor: pointer;
-            transition: background 0.2s, box-shadow 0.2s;
-            text-transform: lowercase;
-            letter-spacing: 2px;
-            box-shadow: 0 0 10px rgba(0,229,255,0.15);
+            transition: all 0.2s;
+            text-transform: uppercase;
+            margin: 4px;
         }
-        .btn:hover {
-            background: rgba(0,229,255,0.22);
-            box-shadow: 0 0 22px rgba(0,229,255,0.55);
-        }
+        .btn:hover { background: rgba(0,229,255,0.12); border-color: var(--neon-blue); color: #fff; }
+        .btn-accent { border-color: var(--neon-pink); color: var(--neon-pink); }
+        .btn-accent:hover { background: rgba(255,0,127,0.12); border-color: var(--neon-pink); }
 
-        /* ── Scanline overlay ────────────────────────────────────────── */
+        /* CRT scanlines overlay */
         .scanlines {
-            position: fixed; inset: 0;
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
             background:
-                linear-gradient(rgba(10,10,15,0) 50%, rgba(0,0,0,0.28) 50%),
-                linear-gradient(90deg, rgba(255,0,127,0.035), rgba(0,229,255,0.035));
+                linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.25) 50%),
+                linear-gradient(90deg, rgba(255,0,127,0.02), rgba(0,229,255,0.02));
             background-size: 100% 4px, 4px 100%;
             pointer-events: none;
-            z-index: 50;
-            opacity: 0.55;
+            z-index: 999;
+            opacity: 0.25;
         }
 
-        /* ── Responsive tweaks ───────────────────────────────────────── */
-        @media (max-width: 600px) {
-            .bar-container { width: 160px; height: 18px; }
-            .left-ui { gap: 10px; }
-            #fragment-counter { font-size: 16px; }
-            #time-display { font-size: 20px; padding: 4px 10px; }
+        /* =============================================
+           TOP-BAR SETTINGS BUTTON
+           ============================================= */
+        .topbar-settings-btn {
+            background: transparent;
+            border: 1px solid #2a2a3a;
+            border-radius: 3px;
+            color: var(--text-mid);
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            padding: 0 13px;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: border-color 0.15s, color 0.15s;
+            height: 28px;
+            margin-left: 10px;
+            border-left: 1px solid #1e1e2e;
+            border-radius: 0;
+            padding-left: 16px;
+        }
+        .topbar-settings-btn:hover { color: var(--neon-blue); }
+
+        /* Flash animation when save completes */
+        @keyframes save-flash {
+            0%   { color: var(--neon-green); text-shadow: 0 0 8px rgba(57,255,20,0.6); }
+            100% { color: var(--text-mid);   text-shadow: none; }
+        }
+        .save-flash { animation: save-flash 0.9s ease-out forwards; }
+
+        /* =============================================
+           SETTINGS MODAL
+           ============================================= */
+        #settings-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(4,4,10,0.88);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 110;
+            backdrop-filter: blur(6px);
+        }
+        #settings-overlay.open { display: flex; }
+
+        .settings-modal {
+            background: rgba(10,10,18,0.98);
+            border: 1px solid #2a2a3a;
+            border-radius: 6px;
+            width: 90%;
+            max-width: 400px;
+            overflow: hidden;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+        }
+
+        .settings-header {
+            background: #0c0c18;
+            border-bottom: 1px solid #1e1e2e;
+            padding: 13px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .settings-header-title {
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            color: var(--text-mid);
+            text-transform: uppercase;
+        }
+
+        .settings-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+
+        .settings-section-label {
+            font-size: 9px;
+            letter-spacing: 2px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            margin-top: 8px;
+        }
+        .settings-section-label:first-child { margin-top: 0; }
+
+        .settings-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #0a0a14;
+            border: 1px solid #1e1e2e;
+            border-radius: 4px;
+            padding: 10px 14px;
+            gap: 12px;
+        }
+
+        .settings-row-info { flex-grow: 1; min-width: 0; }
+        .settings-row-label { font-size: 11px; color: #bbb; font-weight: bold; }
+        .settings-row-sub   { font-size: 9px; color: var(--text-dim); margin-top: 2px; letter-spacing: 0.3px; }
+        #settings-save-time { color: var(--neon-gold); }
+
+        .settings-btn {
+            padding: 6px 14px;
+            font-family: inherit;
+            font-size: 9px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.15s;
+            border: 1px solid;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .sbtn-save  { background: rgba(0,229,255,0.06); border-color: rgba(0,229,255,0.3); color: var(--neon-blue); }
+        .sbtn-save:hover  { background: rgba(0,229,255,0.16); }
+        .sbtn-load  { background: rgba(57,255,20,0.06);  border-color: rgba(57,255,20,0.3);  color: var(--neon-green); }
+        .sbtn-load:hover  { background: rgba(57,255,20,0.16); }
+        .sbtn-clear { background: rgba(255,0,127,0.06); border-color: rgba(255,0,127,0.25); color: var(--neon-pink); }
+        .sbtn-clear:hover { background: rgba(255,0,127,0.16); }
+
+        /* =============================================
+           RESPONSIVE BREAKPOINTS
+           ============================================= */
+        .mobile-only  { display: none !important; }
+        .desktop-only { display: flex !important; }
+
+        @media (max-width: 850px) {
+            .mobile-only  { display: flex !important; }
+            .desktop-only { display: none !important; }
+
+            .desktop-nav-group { display: none; }
+            #top-bar { justify-content: center; }
+            #main-layout { flex-direction: column; }
+
+            /* Left panel → bottom drawer */
+            #left-panel {
+                position: fixed;
+                bottom: 56px; left: 0;
+                width: 100% !important;
+                height: 62%;
+                border-right: none;
+                border-top: 1px solid var(--neon-blue);
+                transform: translateY(100%);
+                transition: transform 0.3s cubic-bezier(0.1, 0.8, 0.3, 1);
+            }
+            #left-panel.open { transform: translateY(0); width: 100% !important; }
+            #left-panel.collapsed { width: 100% !important; }
+            .panel-inner { width: 100% !important; }
+            #toggle-left, #toggle-right { display: none !important; }
+
+            /* Right panel → bottom sheet */
+            #right-panel {
+                position: fixed;
+                bottom: 56px; left: 0;
+                width: 100% !important;
+                height: auto;
+                max-height: 48%;
+                border-left: none;
+                border-top: 1px solid var(--neon-blue);
+                transform: translateY(100%);
+                transition: transform 0.3s cubic-bezier(0.1, 0.8, 0.3, 1);
+            }
+            #right-panel.open { transform: translateY(0); }
+
+            /* IDE splits vertically on mobile */
+            #ide-layout { flex-direction: column; }
+            #ide-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border-dim); }
+            #ide-main { padding: 14px; gap: 12px; }
+            #ide-console { height: 90px; }
         }
     </style>
 </head>
 <body>
 
-<canvas id="gameCanvas"></canvas>
-
-<!-- HUD -->
-<div id="ui-layer">
-    <div class="left-ui">
-        <div class="bar-container" id="health-border">
-            <div class="label">PLAYER INTEGRITY</div>
-            <div id="health-fill"></div>
-            <div class="value-text" id="health-text">34.0/34.0</div>
+    <!-- ===== TOP BAR ===== -->
+    <div id="top-bar">
+        <div class="nav-brand">NEON_BREACH <span>//</span> COMPILE</div>
+        <div class="desktop-nav-group">
+            <button class="nav-btn active" id="nav-ide"       onclick="switchView('ide')">IDE Terminal</button>
+            <button class="nav-btn"        id="nav-workspace" onclick="switchView('workspace')">Node Workspace</button>
+            <button class="topbar-settings-btn" onclick="openSettings()" title="Settings">⚙ Settings</button>
         </div>
-        <div class="bar-container" id="xp-border">
-            <div class="label">SYSTEM XP</div>
-            <div id="xp-fill"></div>
-            <div class="value-text" id="xp-text">0%</div>
-        </div>
-        <div id="fragment-counter">DATA_FRAGS: 0</div>
-        <div id="level-display">LVL 1</div>
     </div>
-    <div class="right-ui">
-        <div id="time-label">TIME SURVIVED</div>
-        <div id="time-display">00:00</div>
-    </div>
-</div>
 
-<!-- Boss progress bar -->
-<div id="progress-container">
-    <div id="progress-label">BOSS THRESHOLD</div>
-    <div id="progress-fill"></div>
-</div>
+    <!-- ===== MAIN LAYOUT ===== -->
+    <div id="main-layout">
 
-<!-- Damage flash overlay -->
-<div id="damage-flash"></div>
+        <!-- LEFT PANEL — LOCAL STASH -->
+        <div id="left-panel" class="side-panel">
+            <!-- Toggle arrow lives on the panel, hangs over the edge -->
+            <button id="toggle-left" class="panel-toggle desktop-only" onclick="togglePanel('left')" title="Collapse stash">◀</button>
 
-<!-- Level-up toast -->
-<div id="levelup-toast">LEVEL UP</div>
+            <div class="panel-inner">
+                <div class="panel-header">
+                    <span>Local Stash</span>
+                    <div class="close-btn mobile-only" onclick="closeMobileDrawer()">×</div>
+                </div>
 
-<!-- End-round modal -->
-<div id="modal-overlay">
-    <div class="modal-content">
-        <div class="modal-title" id="modal-title-text">SESSION TERMINATED</div>
-        <div class="modal-subtitle" id="modal-subtitle-text">status code 401: integrity reached zero</div>
-        <div class="stats-grid">
-            <div class="stat-box">
-                <div class="stat-label">Session Time</div>
-                <div class="stat-value" id="stat-time">00:00</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Nodes Breached</div>
-                <div class="stat-value" id="stat-nodes">0</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Session Frags</div>
-                <div class="stat-value stat-data" id="stat-session-frags">0</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Banked Data</div>
-                <div class="stat-value stat-data" id="stat-banked-data">0</div>
-            </div>
-            <div class="stat-box stat-span">
-                <div class="stat-label">Total XP</div>
-                <div class="stat-value stat-xp" id="stat-xp">0</div>
+                <!-- Stash Tabs — visible set changes per view (switchView manages this) -->
+                <div class="tab-container" id="stash-tab-bar">
+                    <!-- Fragments: IDE only (hidden in Workspace) -->
+                    <button class="tab active" id="tab-btn-fragments" onclick="switchStashTab('fragments')">Fragments</button>
+                    <!-- Compiled: always visible -->
+                    <button class="tab"        id="tab-btn-nodes"     onclick="switchStashTab('nodes')">Compiled</button>
+                    <!-- Macros: Workspace only (hidden in IDE) -->
+                    <button class="tab"        id="tab-btn-macros"    onclick="switchStashTab('macros')">Macros</button>
+                </div>
+
+                <!-- Fragments Tab — empty until loot is awarded -->
+                <div id="tab-fragments" class="scroll-section">
+                    <div class="hint-label">Select a blueprint, then inject fragments to compile it.<br>Fragments are obtained via loot drops.</div>
+                    <div id="desktop-frag-grid" class="grid-layout"></div>
+                </div>
+
+                <!-- Compiled (Nodes) Tab -->
+                <div id="tab-nodes" class="scroll-section" style="display:none;">
+                    <div class="hint-label">Click to deploy. Right-click two identical nodes to Tier Up.</div>
+                    <div id="stash-grid" class="grid-layout"></div>
+                </div>
+
+                <!-- Macros Tab -->
+                <div id="tab-macros" class="scroll-section" style="display:none;">
+                    <div id="macro-list"></div>
+                </div>
             </div>
         </div>
-        <button class="btn" onclick="startNewRound()">new session</button>
+
+        <!-- CENTER PANEL -->
+        <div id="center-panel">
+
+            <!-- === IDE VIEW === -->
+            <div id="view-ide" class="view-container active">
+                <div id="ide-layout">
+                    <!-- Blueprint list sidebar -->
+                    <div id="ide-sidebar">
+                        <div class="panel-header" style="font-size:10px;">Blueprints</div>
+
+                        <!-- Blueprint list -->
+                        <div id="blueprint-list" class="scroll-section"></div>
+                    </div>
+
+                    <!-- IDE editor main area -->
+                    <div id="ide-main">
+                        <div class="ide-header">
+                            <div>
+                                <div id="ide-title">Select Blueprint</div>
+                                <div id="ide-status">IDLE</div>
+                            </div>
+                            <button class="auto-btn" onclick="autoFillIDE()">Auto-Fill</button>
+                        </div>
+                        <div class="code-editor" id="ide-editor">
+                            <div style="color:#333; font-style:italic; margin-top:8px;">// Awaiting blueprint selection...</div>
+                        </div>
+                        <div id="ide-console">
+                            <div>&gt; System terminal ready.</div>
+                            <div>&gt; Select a Blueprint to begin compilation.</div>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /view-ide -->
+
+            <!-- === WORKSPACE VIEW === -->
+            <div id="view-workspace" class="view-container">
+
+                <!-- Mobile toolbar: sits above canvas as a proper bar, not floating -->
+                <div id="mobile-workspace-toolbar" class="mobile-only">
+                    <div class="mob-ws-toolbar-inner">
+                        <button class="mob-ws-btn" onclick="openMobileDrawer('nodes')">＋ Deploy Node</button>
+                        <button class="mob-ws-btn mob-ws-btn-gold" onclick="openMobileDrawer('macros')">⚡ Macros</button>
+                    </div>
+                </div>
+
+                <div id="workspace-canvas-area">
+                    <div id="canvas-inner">
+                        <svg id="wire-layer"></svg>
+                        <div id="node-layer"></div>
+                    </div>
+                </div>
+            </div><!-- /view-workspace -->
+
+        </div><!-- /center-panel -->
+
+        <!-- RIGHT PANEL — INSPECTOR -->
+        <div id="right-panel" class="side-panel">
+            <button id="toggle-right" class="panel-toggle desktop-only" onclick="togglePanel('right')" title="Collapse inspector">▶</button>
+
+            <div class="panel-inner">
+                <div class="panel-header">
+                    <span>Pipeline Inspector</span>
+                    <div class="close-btn mobile-only" onclick="document.getElementById('right-panel').classList.remove('open')">×</div>
+                </div>
+                <div class="scroll-section">
+                    <div id="inspector-default">
+                        Select a deployed node<br>to view its telemetry.
+                    </div>
+                    <div id="inspector-content">
+                        <div class="inspector-title">
+                            <span id="insp-title">Node</span>
+                            <span class="tier-badge" id="insp-tier">T0</span>
+                        </div>
+
+                        <div class="stat-block" id="insp-stats">
+                            <div class="stat-row">
+                                <span class="stat-label">Param</span>
+                                <span class="stat-val" id="insp-stat-name" style="font-size:11px;">—</span>
+                            </div>
+                            <div class="stat-row" style="border-bottom:1px solid #1a1a28; padding-bottom:5px;">
+                                <span class="stat-label">Base</span>
+                                <span class="stat-val val-base" id="insp-base">0.0</span>
+                            </div>
+                            <div class="stat-row" style="border-bottom:1px solid #1a1a28; padding-bottom:5px; margin-top:5px;">
+                                <span class="stat-label">Compile Mod</span>
+                                <span class="stat-val val-mod" id="insp-mod">+0.0</span>
+                            </div>
+                            <div class="stat-row" style="margin-top:5px;">
+                                <span class="stat-label">Output</span>
+                                <span class="stat-val val-total" id="insp-total">0.0</span>
+                            </div>
+                        </div>
+
+                        <div class="insp-desc" id="insp-desc"></div>
+                        <div class="code-preview" id="insp-code"></div>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /right-panel -->
+
+    </div><!-- /main-layout -->
+
+    <!-- MOBILE BOTTOM NAV -->
+    <div id="bottom-nav" class="mobile-only">
+        <button class="mob-nav-btn active" id="mob-nav-ide"       onclick="switchView('ide')">
+            <span style="font-size:17px;">💻</span> Compiler
+        </button>
+        <button class="mob-nav-btn"        id="mob-nav-workspace" onclick="switchView('workspace')">
+            <span style="font-size:17px;">🕸️</span> Pipeline
+        </button>
     </div>
-</div>
 
-<!-- Scanlines -->
-<div class="scanlines"></div>
+    <!-- TOAST -->
+    <div id="toast-container"></div>
 
-<script>
-    // ─────────────────────────────────────────────────────────────────────────
-    // DOM references
-    // ─────────────────────────────────────────────────────────────────────────
-    const canvas        = document.getElementById('gameCanvas');
-    const ctx           = canvas.getContext('2d');
-    const fragDisplay   = document.getElementById('fragment-counter');
-    const levelDisplay  = document.getElementById('level-display');
-    const damageFlash   = document.getElementById('damage-flash');
-    const progressFill  = document.getElementById('progress-fill');
-    const levelupToast  = document.getElementById('levelup-toast');
+    <!-- MODAL -->
+    <div id="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-title" id="modal-title">NODE COMPILED</div>
+            <div class="modal-sub">Successfully added to Deployed Stash.</div>
+            <button class="btn" onclick="closeModal(); switchView('ide');">Stay in IDE</button>
+            <button class="btn btn-accent" onclick="closeModal(); switchView('workspace'); openMobileDrawer('nodes');">Go to Canvas</button>
+        </div>
+    </div>
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Persistent save state (localStorage)
-    // ─────────────────────────────────────────────────────────────────────────
-    let savedFragments = parseInt(localStorage.getItem('neonBreach_fragments')) || 0;
-    let savedData      = parseInt(localStorage.getItem('neonBreach_data'))      || 0;
-    let savedXp        = parseInt(localStorage.getItem('neonBreach_xp'))        || 0;
+    <!-- SETTINGS MODAL -->
+    <div id="settings-overlay" onclick="onSettingsBackdrop(event)">
+        <div class="settings-modal">
+            <div class="settings-header">
+                <span class="settings-header-title">⚙ Settings</span>
+                <span class="close-btn" onclick="closeSettings()" style="font-size:20px;">×</span>
+            </div>
+            <div class="settings-body">
 
-    function saveData() {
-        localStorage.setItem('neonBreach_fragments', savedFragments);
-        localStorage.setItem('neonBreach_data',      savedData);
-        localStorage.setItem('neonBreach_xp',        savedXp);
-    }
+                <div class="settings-section-label">Build Save</div>
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Constants & balance values
-    // ─────────────────────────────────────────────────────────────────────────
-    const MAX_HEALTH    = 34.0;
-    const XP_TO_LEVEL   = 500;
-    const BOSS_THRESHOLD = 100;
-    const HACK_TIME_MS  = 1500;   // ms to deal one hack tick
-    const HACK_DAMAGE   = 35;     // hp removed per hack tick
-    const IDLE_DEGEN_BASE  = 0.05; // hp/sec baseline drain
-    const IDLE_DEGEN_SCALE = 0.001; // hp/sec added per second survived
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <div class="settings-row-label">Save Build</div>
+                        <div class="settings-row-sub">Write current state to browser storage.</div>
+                    </div>
+                    <button class="settings-btn sbtn-save" id="btn-save" onclick="saveState()">💾 Save</button>
+                </div>
 
-    /** Node type definitions */
-    const NODE_TYPES = {
-        basic:  { size: 30,  hp: 70,  frags: 1,  thorns: 0.5, prog: 5  },
-        medium: { size: 45,  hp: 140, frags: 3,  thorns: 1.5, prog: 15 },
-        boss:   { size: 180, hp: 800, frags: 15, thorns: 4.5, prog: 0  },
-        moon:   { size: 18,  hp: 35,  frags: 1,  thorns: 0.2, prog: 2  },
-    };
-    const NODE_COLORS = {
-        basic:  '#ff007f',
-        medium: '#00e5ff',
-        boss:   '#d500f9',
-        moon:   '#ff007f',
-    };
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <div class="settings-row-label">Load Build</div>
+                        <div class="settings-row-sub">Last saved: <span id="settings-save-time">—</span></div>
+                    </div>
+                    <button class="settings-btn sbtn-load" onclick="loadState()">⟳ Load</button>
+                </div>
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Session state
-    // ─────────────────────────────────────────────────────────────────────────
-    let gameState        = 'playing';
-    let playerHealth     = MAX_HEALTH;
-    let sessionFragments = 0;
-    let sessionNodes     = 0;
-    let sessionXp        = 0;
-    let sessionTime      = 0;
-    let bossProgress     = 0;
-    let spawnAccumulator = 0;
-    let lastTime         = performance.now();
-    let prevLevel        = 1;         // for detecting level-ups
+                <div class="settings-row">
+                    <div class="settings-row-info">
+                        <div class="settings-row-label">Clear Save</div>
+                        <div class="settings-row-sub">Wipe stored data and reset to defaults.</div>
+                    </div>
+                    <button class="settings-btn sbtn-clear" onclick="clearSave()">✕ Clear</button>
+                </div>
 
-    let nodes     = [];
-    let fragments = [];
+            </div>
+        </div>
+    </div>
 
-    // Mouse / touch cursor
-    const mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2, radius: 35 };
+    <!-- CRT overlay -->
+    <div class="scanlines"></div>
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Canvas resize — scales all existing entity positions proportionally
-    // ─────────────────────────────────────────────────────────────────────────
-    let prevWidth  = 0;
-    let prevHeight = 0;
+    <!-- ===================================================
+         JAVASCRIPT
+         =================================================== -->
+    <script>
+        // =========================================================
+        // PLAYER BASE STATS
+        // =========================================================
+        const PLAYER_STATS = { radius: 35.0, damage: 35.0, integrity: 100.0 };
 
-    function resize() {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
+        // =========================================================
+        // NODE DEFINITIONS
+        // Each entry describes a node type: its ports, stats, and
+        // the code-line fragments a player must compile to build it.
+        //
+        // Special keys:
+        //   isSystem  — permanent canvas nodes, cannot be deleted
+        //   statName  — which inspector stat row to display
+        //   statBase  — key into PLAYER_STATS for base value
+        //   baseMod   — flat modifier added per Tier level
+        //   codeLines — HTML strings shown in the IDE editor
+        //                {BASE} / {MOD} are replaced at render time
+        // =========================================================
+        const NODE_DEFS = {
 
-        if (prevWidth && prevHeight && (prevWidth !== w || prevHeight !== h)) {
-            const sx = w / prevWidth;
-            const sy = h / prevHeight;
-            for (const n of nodes)     { n.x *= sx; n.y *= sy; }
-            for (const f of fragments) { f.x *= sx; f.y *= sy; }
-            mouse.x *= sx;
-            mouse.y *= sy;
+            // ---- System nodes (always present on canvas) ----
+            'sys_in': {
+                id: 'sys_in', title: 'System', typeClass: 'type-system', color: 'var(--neon-green)', icon: '🌐',
+                inputs: [], outputs: [{ id: 'out_flow', label: 'Sys.Out', type: 'flow' }],
+                isSystem: true, desc: '// Root entry point from hacking OS'
+            },
+            'sys_out': {
+                id: 'sys_out', title: 'WAN_Out', typeClass: 'type-system', color: 'var(--neon-green)', icon: '📡',
+                inputs: [{ id: 'in_flow', label: 'Net.Out', type: 'flow' }], outputs: [],
+                isSystem: true, desc: '// Final execution to Wide Area Network'
+            },
+
+            // ---- Flow nodes ----
+            // FIX: Sequence() now has MULTIPLE inputs and ONE output,
+            //      correctly matching a "merge then sequence" pattern.
+            'flow_seq': {
+                id: 'flow_seq', title: 'Sequence()', typeClass: 'type-flow', color: 'var(--neon-gold)', icon: '🔀',
+                inputs: [
+                    { id: 'in_0', label: 'Then 0', type: 'flow' },
+                    { id: 'in_1', label: 'Then 1', type: 'flow' }
+                ],
+                outputs: [{ id: 'out_flow', label: 'Exec', type: 'flow' }],
+                statName: null, baseMod: null, isSystem: false,
+                desc: 'Merges multiple execution paths sequentially.',
+                codeLines: [
+                    `<span class="c-kw">function</span> <span class="c-fn">Sequence</span>() {`,
+                    `    <span class="c-fn">await</span>(0); <span class="c-fn">await</span>(1);`,
+                    `}`
+                ]
+            },
+
+            // ---- Event nodes ----
+            'event_tick': {
+                id: 'event_tick', title: 'On_Tick()', typeClass: 'type-event', color: 'var(--neon-pink)', icon: '⏱️',
+                inputs: [{ id: 'in_flow', label: 'Exec', type: 'flow' }],
+                outputs: [{ id: 'out_flow', label: 'Exec', type: 'flow' }],
+                statName: null, baseMod: null, isSystem: false,
+                desc: 'Triggers every system clock cycle.',
+                codeLines: [
+                    `<span class="c-kw">event</span> <span class="c-fn">On_Tick</span>() {`,
+                    `    <span class="c-fn">execute</span>(<span class="c-vr">EXEC</span>);`,
+                    `}`
+                ]
+            },
+            'event_hit': {
+                id: 'event_hit', title: 'On_Dmg_Taken()', typeClass: 'type-event', color: 'var(--neon-pink)', icon: '💥',
+                inputs: [{ id: 'in_flow', label: 'Exec', type: 'flow' }],
+                outputs: [{ id: 'out_flow', label: 'Exec', type: 'flow' }],
+                statName: null, baseMod: null, isSystem: false,
+                desc: 'Triggers when player loses integrity.',
+                codeLines: [
+                    `<span class="c-kw">event</span> <span class="c-fn">On_Damage_Taken</span>() {`,
+                    `    <span class="c-fn">execute</span>(<span class="c-vr">EXEC</span>);`,
+                    `}`
+                ]
+            },
+            'event_hack': {
+                id: 'event_hack', title: 'On_Breach()', typeClass: 'type-event', color: 'var(--neon-pink)', icon: '⚡',
+                inputs: [{ id: 'in_flow', label: 'Exec', type: 'flow' }],
+                outputs: [{ id: 'out_flow', label: 'Exec', type: 'flow' }],
+                statName: null, baseMod: null, isSystem: false,
+                desc: 'Triggers when an enemy node is destroyed.',
+                codeLines: [
+                    `<span class="c-kw">event</span> <span class="c-fn">On_Breach</span>() {`,
+                    `    <span class="c-fn">execute</span>(<span class="c-vr">EXEC</span>);`,
+                    `}`
+                ]
+            },
+
+            // ---- Action nodes ----
+            'action_radius': {
+                id: 'action_radius', title: 'Expand_Radius()', typeClass: 'type-action', color: 'var(--neon-blue)', icon: '⭕',
+                inputs: [{ id: 'in_flow', label: 'Exec', type: 'flow' }],
+                outputs: [{ id: 'out_flow', label: 'Exec', type: 'flow' }],
+                statName: 'radius', statBase: 'radius', baseMod: 15.0, isSystem: false,
+                desc: 'Increases targeting area by a flat radius value.',
+                codeLines: [
+                    `<span class="c-kw">function</span> <span class="c-fn">Expand_Radius</span>() {`,
+                    `    <span class="c-vr">sys.radius</span> = <span class="c-nb">{BASE}</span> + <span class="c-nm">{MOD}</span>;`,
+                    `}`
+                ]
+            },
+            'action_dmg': {
+                id: 'action_dmg', title: 'Overclock_Dmg()', typeClass: 'type-action', color: 'var(--neon-blue)', icon: '⚔️',
+                inputs: [{ id: 'in_flow', label: 'Exec', type: 'flow' }],
+                outputs: [{ id: 'out_flow', label: 'Exec', type: 'flow' }],
+                statName: 'damage', statBase: 'damage', baseMod: 10.0, isSystem: false,
+                desc: 'Overclocks base node damage output.',
+                codeLines: [
+                    `<span class="c-kw">function</span> <span class="c-fn">Overclock_Dmg</span>() {`,
+                    `    <span class="c-vr">sys.attack</span> = <span class="c-nb">{BASE}</span> + <span class="c-nm">{MOD}</span>;`,
+                    `}`
+                ]
+            },
+            'action_heal': {
+                id: 'action_heal', title: 'Restore_Integrity()', typeClass: 'type-action', color: 'var(--neon-blue)', icon: '❤️',
+                inputs: [{ id: 'in_flow', label: 'Exec', type: 'flow' }],
+                outputs: [{ id: 'out_flow', label: 'Exec', type: 'flow' }],
+                statName: 'heal', statBase: 'integrity', baseMod: 5.0, isSystem: false,
+                desc: 'Restores player integrity on execution.',
+                codeLines: [
+                    `<span class="c-kw">function</span> <span class="c-fn">Restore_Integrity</span>() {`,
+                    `    <span class="c-vr">sys.hp</span> += <span class="c-nm">{MOD}</span>;`,
+                    `}`
+                ]
+            },
+            'action_emp': {
+                id: 'action_emp', title: 'Pulse_EMP()', typeClass: 'type-action', color: 'var(--neon-blue)', icon: '💢',
+                inputs: [{ id: 'in_flow', label: 'Exec', type: 'flow' }],
+                outputs: [{ id: 'out_flow', label: 'Exec', type: 'flow' }],
+                statName: 'aoe_dmg', statBase: 'damage', baseMod: 50.0, isSystem: false,
+                desc: 'Massive AOE burst to all connected enemy nodes.',
+                codeLines: [
+                    `<span class="c-kw">function</span> <span class="c-fn">Pulse_EMP</span>() {`,
+                    `    <span class="c-fn">deal_aoe</span>(<span class="c-nm">{MOD}</span>);`,
+                    `}`
+                ]
+            }
+        };
+
+        // =========================================================
+        // MACROS — pre-built node combos the player can deploy
+        // =========================================================
+        const MACROS = [
+            {
+                id: 'm1',
+                title: 'Panic Heal',
+                desc: 'Automatically restores integrity when damage is taken.',
+                reqs: ['event_hit', 'action_heal'],
+                exec(sx, sy) {
+                    const n1 = deployNodeToCanvas('event_hit',   popStashNode('event_hit').tier,   sx - 120, sy);
+                    const n2 = deployNodeToCanvas('action_heal', popStashNode('action_heal').tier, sx + 120, sy);
+                    pushConn(n1.id, 'out_flow', n2.id, 'in_flow');
+                }
+            },
+            {
+                id: 'm2',
+                title: 'Ordered Breach',
+                desc: 'On breach, pulses EMP then buffs damage.',
+                reqs: ['event_hack', 'flow_seq', 'action_emp', 'action_dmg'],
+                exec(sx, sy) {
+                    const ev  = deployNodeToCanvas('event_hack', popStashNode('event_hack').tier, sx - 220, sy);
+                    const seq = deployNodeToCanvas('flow_seq',   popStashNode('flow_seq').tier,   sx,       sy);
+                    const emp = deployNodeToCanvas('action_emp', popStashNode('action_emp').tier, sx + 220, sy - 70);
+                    const dmg = deployNodeToCanvas('action_dmg', popStashNode('action_dmg').tier, sx + 220, sy + 70);
+                    pushConn(ev.id,  'out_flow', seq.id, 'in_0');
+                    pushConn(seq.id, 'out_flow', emp.id, 'in_flow');
+                    pushConn(seq.id, 'out_flow', dmg.id, 'in_flow');
+                }
+            }
+        ];
+
+        // Helper: push a connection object
+        function pushConn(fromNode, fromPort, toNode, toPort, type = 'flow') {
+            connections.push({
+                id: 'c_' + Math.random().toString(36).substr(2, 6),
+                fromNode, fromPort, toNode, toPort, type
+            });
         }
 
-        canvas.width  = w;
-        canvas.height = h;
-        mouse.radius  = Math.max(30, w * 0.04);
-        prevWidth  = w;
-        prevHeight = h;
-    }
-    window.addEventListener('resize', resize);
-    resize();
+        // =========================================================
+        // APP STATE
+        // =========================================================
+        // Fragments are obtained via loot drop (future integration).
+        // The inventory starts empty; the IDE will populate it when loot is awarded.
+        let invFragments = {};
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Input — mouse & touch
-    // ─────────────────────────────────────────────────────────────────────────
-    function updateMousePos(e) {
-        const src  = e.touches ? e.touches[0] : e;
-        mouse.x = src.clientX;
-        mouse.y = src.clientY;
-    }
-    window.addEventListener('mousemove', updateMousePos);
-    window.addEventListener('touchstart', updateMousePos, { passive: true });
-    window.addEventListener('touchmove', (e) => { e.preventDefault(); updateMousePos(e); }, { passive: false });
+        let stashNodes = [
+            { id: 'sn1', defId: 'action_radius', tier: 0 },
+            { id: 'sn2', defId: 'event_hack',    tier: 0 }
+        ];
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Utilities
-    // ─────────────────────────────────────────────────────────────────────────
-    function formatTime(seconds) {
-        const m = Math.floor(seconds / 60);
-        const s = Math.floor(seconds % 60);
-        return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    }
+        let activeBlueprint = null;
+        let blueprintDrafts = {};
+        let isCompiling     = false;
 
-    function getLevel(totalXp) {
-        return Math.floor(totalXp / XP_TO_LEVEL) + 1;
-    }
+        // Canvas state
+        let nodes       = [];
+        let connections = [];
+        let selectedNode = null, draggedNode = null, dragOffset = { x: 0, y: 0 };
+        let drawingWire = false, wireStartPort = null, wireStartNode = null;
+        let camX = 0, camY = 0, camScale = 1;
+        let isPanning = false, panStartX = 0, panStartY = 0;
 
-    function triggerDamageFlash() {
-        damageFlash.style.opacity = '1';
-        setTimeout(() => { damageFlash.style.opacity = '0'; }, 100);
-    }
+        // Panel collapse state
+        let panelCollapsed = { left: false, right: false };
 
-    let levelupTimer = null;
-    function triggerLevelUp() {
-        levelupToast.style.opacity = '1';
-        clearTimeout(levelupTimer);
-        levelupTimer = setTimeout(() => { levelupToast.style.opacity = '0'; }, 1200);
-    }
+        // DOM shortcuts
+        const ws          = document.getElementById('workspace-canvas-area');
+        const canvasInner = document.getElementById('canvas-inner');
+        const nLayer      = document.getElementById('node-layer');
+        const wLayer      = document.getElementById('wire-layer');
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Node class
-    // ─────────────────────────────────────────────────────────────────────────
-    class Node {
-        /**
-         * @param {string|null} typeOverride - Force a specific node type, or null for random.
-         * @param {boolean}     isMoon       - True if this is a moon (orbit) node.
-         */
-        constructor(typeOverride = null, isMoon = false) {
-            // ── Resolve type ──────────────────────────────────────────
-            if (typeOverride) {
-                this.type = typeOverride;
-            } else if (isMoon) {
-                this.type = 'moon';
-            } else {
-                // 65% basic, 35% medium
-                this.type = Math.random() > 0.65 ? 'medium' : 'basic';
-            }
-
-            const cfg   = NODE_TYPES[this.type];
-            this.size   = cfg.size;
-            this.health = cfg.hp;
-            this.maxHealth  = cfg.hp;
-            this.color      = NODE_COLORS[this.type];
-            this.dropAmount = cfg.frags;
-            this.baseThorns = cfg.thorns;
-            this.progValue  = cfg.prog;
-
-            this.angle    = Math.random() * Math.PI * 2;
-            this.rotSpeed = (Math.random() - 0.5) * 0.02;
-
-            // Orbit properties (moons only)
-            this.parent      = null;   // parent Node reference (or null)
-            this.orbitRadius = 0;
-            this.orbitSpeed  = 0;
-            this.orbitAngle  = 0;      // current orbit angle in radians
-
-            // Hack state
-            this.hackTimer = 0;
-            this.flash     = 0;        // frames of white-flash remaining
-
-            // ── Spawn position ────────────────────────────────────────
-            if (isMoon) {
-                // Position is set by the parent after construction
-                this.x = -1000; this.y = -1000;
-            } else {
-                const margin = this.size + 20;
-                const edge   = Math.floor(Math.random() * 4);
-                if (edge === 0) {
-                    this.x = Math.random() * canvas.width;  this.y = -margin;
-                } else if (edge === 1) {
-                    this.x = canvas.width + margin;          this.y = Math.random() * canvas.height;
-                } else if (edge === 2) {
-                    this.x = Math.random() * canvas.width;  this.y = canvas.height + margin;
-                } else {
-                    this.x = -margin;                        this.y = Math.random() * canvas.height;
+        // =========================================================
+        // INIT
+        // =========================================================
+        function init() {
+            // Create blank draft arrays for every non-system node type
+            for (const key in NODE_DEFS) {
+                if (!NODE_DEFS[key].isSystem) {
+                    blueprintDrafts[key] = new Array(NODE_DEFS[key].codeLines.length).fill(false);
                 }
             }
 
-            // ── Initial velocity — drift toward screen centre region ──
-            const targetX = canvas.width  / 2 + (Math.random() - 0.5) * canvas.width  * 0.6;
-            const targetY = canvas.height / 2 + (Math.random() - 0.5) * canvas.height * 0.6;
-            const dir     = Math.atan2(targetY - this.y, targetX - this.x);
-            const speedMult = this.type === 'boss' ? 0.2 : 1;
-            const speed     = (40 + Math.random() * 40) * speedMult;
-            this.vx = Math.cos(dir) * speed;
-            this.vy = Math.sin(dir) * speed;
+            renderBlueprintList();
+            renderInventory();
+            renderStash();
+            renderMacros();
+
+            // Spawn the two fixed system nodes close together near center.
+            // IMPORTANT: Use fixed, stable IDs (not random) so that saved
+            // connections to system nodes survive a reload correctly.
+            const cx = window.innerWidth  / 2;
+            const cy = window.innerHeight / 2 - 22;
+
+            deployNodeToCanvas('sys_in',  0, cx - 220, cy, true, 'sys_in');
+            deployNodeToCanvas('sys_out', 0, cx + 80,  cy, true, 'sys_out');
+
+            // Canvas pointer events
+            ws.addEventListener('mousedown',  onCanvasPointerDown);
+            ws.addEventListener('touchstart', onCanvasPointerDown, { passive: false });
+            window.addEventListener('mousemove',  onGlobalPointerMove);
+            window.addEventListener('touchmove',  onGlobalPointerMove, { passive: false });
+            window.addEventListener('mouseup',    onGlobalPointerUp);
+            window.addEventListener('touchend',   onGlobalPointerUp);
+            ws.addEventListener('wheel', onCanvasWheel, { passive: false });
+
+            switchView('workspace');
         }
 
-        /** @param {number} dt - Delta time in seconds */
-        update(dt) {
-            if (this.parent !== null) {
-                // Orbit around parent
-                this.orbitAngle += this.orbitSpeed * dt;
-                this.x = this.parent.x + Math.cos(this.orbitAngle) * this.orbitRadius;
-                this.y = this.parent.y + Math.sin(this.orbitAngle) * this.orbitRadius;
-                // Inherit parent velocity for collision broadphase consistency
-                this.vx = this.parent.vx;
-                this.vy = this.parent.vy;
+        // =========================================================
+        // PANEL COLLAPSE TOGGLE
+        // FIX: Adds toggle buttons to collapse either side panel
+        //      for more workspace / IDE real-estate.
+        // =========================================================
+        function togglePanel(side) {
+            const panel  = document.getElementById(`${side}-panel`);
+            const btn    = document.getElementById(`toggle-${side}`);
+            panelCollapsed[side] = !panelCollapsed[side];
+
+            panel.classList.toggle('collapsed', panelCollapsed[side]);
+
+            // Flip the arrow direction to indicate action
+            if (side === 'left') {
+                btn.textContent = panelCollapsed[side] ? '▶' : '◀';
+                btn.title       = panelCollapsed[side] ? 'Expand stash' : 'Collapse stash';
             } else {
-                // Free movement
-                this.x += this.vx * dt;
-                this.y += this.vy * dt;
-
-                // Bounce when far off-screen (keeps stragglers in play)
-                const bound = 300;
-                if (this.x < -bound || this.x > canvas.width  + bound) this.vx *= -1;
-                if (this.y < -bound || this.y > canvas.height + bound) this.vy *= -1;
+                btn.textContent = panelCollapsed[side] ? '◀' : '▶';
+                btn.title       = panelCollapsed[side] ? 'Expand inspector' : 'Collapse inspector';
             }
 
-            // Spin
-            this.angle += this.rotSpeed;
-
-            // Decorative ring angle (used in draw — not the same as orbit motion)
-            // Only increment this independent of orbit so it doesn't double-count for moons.
-            if (this.parent === null) this.orbitAngle += dt * 2;
-
-            // Decay flash counter
-            if (this.flash > 0) this.flash -= dt * 60;
+            // Redraw wires after layout shift
+            setTimeout(updateWires, 280);
         }
 
-        /** @param {boolean} isHovered - Whether the player cursor overlaps this node */
-        draw(isHovered) {
-            const flashing = this.flash > 0;
+        // =========================================================
+        // NAVIGATION
+        // =========================================================
+        function switchView(view) {
+            // Desktop nav active state
+            document.getElementById('nav-ide').classList.remove('active');
+            document.getElementById('nav-workspace').classList.remove('active');
+            document.getElementById(`nav-${view}`).classList.add('active');
 
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            ctx.rotate(this.angle);
+            // Mobile nav active state
+            document.getElementById('mob-nav-ide').classList.remove('active');
+            document.getElementById('mob-nav-workspace').classList.remove('active');
+            document.getElementById(`mob-nav-${view}`).classList.add('active');
 
-            // ── Filled hexagon body ───────────────────────────────────
-            ctx.shadowBlur  = isHovered ? (this.type === 'boss' ? 50 : 30) : 15;
-            ctx.shadowColor = this.color;
-            ctx.fillStyle   = flashing ? '#ffffff' : this.color;
-            ctx.globalAlpha = 0.3 + (this.health / this.maxHealth) * 0.5;
+            // Show / hide center views
+            document.querySelectorAll('.view-container').forEach(v => v.classList.remove('active'));
+            document.getElementById(`view-${view}`).classList.add('active');
 
-            ctx.beginPath();
-            for (let i = 0; i < 6; i++) {
-                const a = (Math.PI / 3) * i;
-                ctx.lineTo((this.size / 2) * Math.cos(a), (this.size / 2) * Math.sin(a));
+            // Close any open mobile drawers
+            document.getElementById('left-panel').classList.remove('open');
+            document.getElementById('right-panel').classList.remove('open');
+
+            // Context-aware tab visibility:
+            //   IDE Terminal   → Fragments + Compiled  (Macros are canvas tools)
+            //   Node Workspace → Compiled + Macros     (Fragments are IDE tools)
+            const fragBtn   = document.getElementById('tab-btn-fragments');
+            const macrosBtn = document.getElementById('tab-btn-macros');
+            if (view === 'ide') {
+                fragBtn.style.display   = '';
+                macrosBtn.style.display = 'none';
+                switchStashTab('fragments');
+            } else {
+                fragBtn.style.display   = 'none';
+                macrosBtn.style.display = '';
+                switchStashTab('nodes');
             }
-            ctx.closePath();
-            ctx.fill();
+        }
 
-            // ── Hexagon outline ───────────────────────────────────────
-            ctx.strokeStyle = flashing ? '#ffffff' : '#fff';
-            ctx.lineWidth   = this.type === 'boss' ? 3 : 1.5;
-            ctx.globalAlpha = 0.8;
-            ctx.stroke();
+        function switchStashTab(tab) {
+            document.querySelectorAll('#left-panel .tab').forEach(t => t.classList.remove('active'));
+            const btn = document.getElementById(`tab-btn-${tab}`);
+            if (btn) btn.classList.add('active');
+            document.getElementById('tab-fragments').style.display = tab === 'fragments' ? 'flex' : 'none';
+            document.getElementById('tab-nodes').style.display     = tab === 'nodes'     ? 'flex' : 'none';
+            document.getElementById('tab-macros').style.display    = tab === 'macros'    ? 'flex' : 'none';
+        }
 
-            // ── Inner triangle glyph ──────────────────────────────────
-            ctx.beginPath();
-            ctx.moveTo(0,               this.size / 4);
-            ctx.lineTo(-this.size / 4.5, -this.size / 5);
-            ctx.lineTo( this.size / 4.5, -this.size / 5);
-            ctx.closePath();
-            ctx.stroke();
+        function openMobileDrawer(tab) {
+            document.getElementById('left-panel').classList.add('open');
+            switchStashTab(tab);
+        }
 
-            // ── Orbiting orb decorations (non-moon nodes only) ────────
-            if (this.parent === null && this.type !== 'moon') {
-                ctx.globalAlpha = 1.0;
-                const orbCount = this.type === 'boss' ? 8 : 3;
-                const orbDist  = this.size * 0.7;
-                for (let i = 0; i < orbCount; i++) {
-                    const a = (Math.PI * 2 / orbCount) * i + this.orbitAngle;
-                    ctx.beginPath();
-                    ctx.arc(orbDist * Math.cos(a), orbDist * Math.sin(a), this.type === 'boss' ? 6 : 3, 0, Math.PI * 2);
-                    ctx.fill();
+        function closeMobileDrawer() {
+            document.getElementById('left-panel').classList.remove('open');
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast-container');
+            t.textContent = msg;
+            t.style.opacity = '1';
+            clearTimeout(t._tid);
+            t._tid = setTimeout(() => { t.style.opacity = '0'; }, 2500);
+        }
+
+        // =========================================================
+        // RENDER — INVENTORY (fragments grid)
+        // Renders whatever fragments are currently in invFragments.
+        // Starts empty — populated via future loot integration.
+        // =========================================================
+        function renderInventory() {
+            const dGrid = document.getElementById('desktop-frag-grid');
+            if (!dGrid) return;
+            dGrid.innerHTML = '';
+
+            let hasAny = false;
+            for (const defId in invFragments) {
+                const def = NODE_DEFS[defId];
+                if (!def || def.isSystem) continue;
+                for (const partIdx in invFragments[defId]) {
+                    if (invFragments[defId][partIdx] <= 0) continue;
+                    hasAny = true;
+                    const el = document.createElement('div');
+                    el.className = `grid-item ${def.typeClass}-border`;
+                    el.innerHTML = `
+                        <div class="item-count">${invFragments[defId][partIdx]}</div>
+                        <div class="item-icon" style="color:${def.color}">${def.icon}</div>
+                        <div class="item-title">${def.title.replace('()', '')}</div>
+                        <div class="item-line-lbl">Line ${parseInt(partIdx) + 1}</div>
+                    `;
+                    el.onclick = () => injectFragmentToIDE(defId, parseInt(partIdx));
+                    dGrid.appendChild(el);
                 }
             }
-
-            // ── Target brackets when hovered ──────────────────────────
-            if (isHovered) {
-                ctx.shadowBlur   = 0;
-                ctx.strokeStyle  = '#00e5ff';
-                ctx.lineWidth    = this.type === 'boss' ? 4 : 2;
-                const off = this.size * 0.85;
-                const len = this.type === 'boss' ? 30 : 8;
-
-                ctx.beginPath();
-                ctx.moveTo(-off, -off + len); ctx.lineTo(-off, -off); ctx.lineTo(-off + len, -off);
-                ctx.moveTo( off - len, -off); ctx.lineTo( off, -off); ctx.lineTo( off, -off + len);
-                ctx.moveTo( off,  off - len); ctx.lineTo( off,  off); ctx.lineTo( off - len,  off);
-                ctx.moveTo(-off + len,  off); ctx.lineTo(-off,  off); ctx.lineTo(-off,  off - len);
-                ctx.stroke();
-            }
-
-            ctx.restore();
-
-            // ── Health bar (shown when damaged or hovered) ────────────
-            if (this.health < this.maxHealth || isHovered) {
-                const barW   = this.size * 0.8;
-                const barH   = this.type === 'boss' ? 8 : 4;
-                const yOff   = -this.size / 1.5 - (this.type === 'boss' ? 25 : 12);
-                const pct    = Math.max(0, this.health / this.maxHealth);
-
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                ctx.shadowBlur = 0;
-                ctx.fillStyle  = 'rgba(255,0,127,0.2)';
-                ctx.fillRect(-barW / 2, yOff, barW, barH);
-                ctx.fillStyle = this.color;
-                ctx.fillRect(-barW / 2, yOff, barW * pct, barH);
-                ctx.restore();
+            // Show "no fragments" message when inventory is empty
+            if (!hasAny) {
+                dGrid.innerHTML = '<div style="color:var(--text-dim);font-size:10px;font-style:italic;padding:8px 4px;">No fragments in inventory.<br>Earn them through gameplay.</div>';
             }
         }
-    }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Fragment class — collectible pickup that homes toward the HUD counter
-    // ─────────────────────────────────────────────────────────────────────────
-    class Fragment {
-        constructor(x, y) {
-            this.x    = x;
-            this.y    = y;
-            this.vx   = (Math.random() - 0.5) * 600;
-            this.vy   = (Math.random() - 0.5) * 600;
-            this.size = Math.random() * 4 + 6;
-            this.life = 0;
-            this.rot  = Math.random() * Math.PI;
-            this.homing = false;
+        // =========================================================
+        // RENDER — STASH (compiled node grid)
+        // =========================================================
+        function renderStash() {
+            const grid = document.getElementById('stash-grid');
+            grid.innerHTML = '';
 
-            // Target: the fragment-counter element's screen position
-            // Resolved once per fragment so it's always accurate.
-            const rect = fragDisplay.getBoundingClientRect();
-            this.targetX = rect.left + rect.width  / 2;
-            this.targetY = rect.top  + rect.height / 2;
+            stashNodes.forEach((node, idx) => {
+                const def = NODE_DEFS[node.defId];
+                const el  = document.createElement('div');
+                el.className = `grid-item ${def.typeClass}-border`;
+                el.innerHTML = `
+                    <div class="item-tier">T${node.tier}</div>
+                    <div class="item-icon" style="color:${def.color}">${def.icon}</div>
+                    <div class="item-title">${def.title.replace('()', '')}</div>
+                `;
+
+                // Left-click — deploy to canvas center
+                el.onclick = () => {
+                    const tx = (-camX + window.innerWidth  / 2) / camScale - 90;
+                    const ty = (-camY + window.innerHeight / 2) / camScale - 50;
+                    deployNodeToCanvas(node.defId, node.tier, tx, ty);
+                    stashNodes.splice(idx, 1);
+                    renderStash();
+                    closeMobileDrawer();
+                };
+
+                // Right-click — tier merge if duplicate exists
+                el.addEventListener('contextmenu', e => {
+                    e.preventDefault();
+                    const mIdx = stashNodes.findIndex((n, i) => i !== idx && n.defId === node.defId && n.tier === node.tier);
+                    if (mIdx > -1) {
+                        stashNodes[idx].tier++;
+                        stashNodes.splice(mIdx, 1);
+                        renderStash();
+                        logConsole(`> Upgraded ${def.title} → Tier ${stashNodes[idx]?.tier}`);
+                    }
+                });
+
+                grid.appendChild(el);
+            });
         }
 
-        /**
-         * @param {number} dt - Delta time in seconds
-         * @returns {boolean} true when the fragment should be collected
-         */
-        update(dt) {
-            this.life += dt;
-            this.rot  += dt * 2;
+        // =========================================================
+        // RENDER — MACROS
+        // =========================================================
+        function renderMacros() {
+            const list = document.getElementById('macro-list');
+            list.innerHTML = '';
 
-            if (!this.homing) {
-                // Burst outward, then decelerate
-                this.x  += this.vx * dt;
-                this.y  += this.vy * dt;
-                this.vx *= 0.88;
-                this.vy *= 0.88;
-                if (this.life > 0.4) this.homing = true;
-            } else {
-                // Home toward the fragment counter in the HUD
-                const dx = this.targetX - this.x;
-                const dy = this.targetY - this.y;
-                const d  = Math.hypot(dx, dy);
-                if (d < 15) return true;   // collected
-                const speed = 1200 * dt;
-                this.x += (dx / d) * speed;
-                this.y += (dy / d) * speed;
+            MACROS.forEach(m => {
+                const canAfford = canAffordMacro(m.reqs);
+                const el = document.createElement('div');
+                el.className = `macro-item ${canAfford ? '' : 'disabled'}`;
+
+                let reqHtml = '<div class="macro-reqs">';
+                m.reqs.forEach(r => {
+                    const d    = NODE_DEFS[r];
+                    const have = stashNodes.some(n => n.defId === r);
+                    reqHtml += `<span style="color:${have ? 'var(--neon-green)' : '#555'}">${have ? '[✓]' : '[x]'} ${d.title}</span><br>`;
+                });
+                reqHtml += '</div>';
+
+                el.innerHTML = `<div class="macro-title">${m.title}</div><div class="macro-desc">${m.desc}</div>${reqHtml}`;
+
+                el.onclick = canAfford
+                    ? () => {
+                        const sx = (-camX + window.innerWidth  / 2) / camScale;
+                        const sy = (-camY + window.innerHeight / 2) / camScale;
+                        m.exec(sx, sy);
+                        updateWires();
+                        renderStash();
+                        renderMacros();
+                        closeMobileDrawer();
+                    }
+                    : () => showToast('MISSING REQUIRED NODES');
+
+                list.appendChild(el);
+            });
+        }
+
+        // =========================================================
+        // MACRO HELPERS
+        // =========================================================
+        function canAffordMacro(reqs) {
+            const sCounts = {}, rCounts = {};
+            stashNodes.forEach(n => { sCounts[n.defId] = (sCounts[n.defId] || 0) + 1; });
+            reqs.forEach(r      => { rCounts[r]        = (rCounts[r]        || 0) + 1; });
+            for (const req in rCounts) {
+                if ((sCounts[req] || 0) < rCounts[req]) return false;
             }
-            return false;
+            return true;
         }
 
-        draw() {
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            ctx.rotate(this.rot);
-            ctx.fillStyle   = '#00e5ff';
-            ctx.shadowBlur  = 10;
-            ctx.shadowColor = '#00e5ff';
-
-            ctx.beginPath();
-            for (let i = 0; i < 6; i++) {
-                const a = (Math.PI / 3) * i;
-                ctx.lineTo((this.size / 2) * Math.cos(a), (this.size / 2) * Math.sin(a));
-            }
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
+        function popStashNode(defId) {
+            let bestIdx = -1, bestTier = -1;
+            stashNodes.forEach((n, i) => {
+                if (n.defId === defId && n.tier > bestTier) { bestTier = n.tier; bestIdx = i; }
+            });
+            return bestIdx > -1 ? stashNodes.splice(bestIdx, 1)[0] : null;
         }
-    }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Spawn helpers
-    // ─────────────────────────────────────────────────────────────────────────
+        // =========================================================
+        // IDE — BLUEPRINT LIST
+        // =========================================================
+        function renderBlueprintList() {
+            const list = document.getElementById('blueprint-list');
+            if (!list) return;
+            list.innerHTML = '';
 
-    /**
-     * Spawns a primary node and attaches moon-orbit satellites.
-     * @param {string|null} typeOverride - 'boss' to force a boss node.
-     */
-    function spawnNodeWithMoons(typeOverride = null) {
-        const n = new Node(typeOverride);
-        nodes.push(n);
-
-        if (n.type === 'medium' || n.type === 'boss') {
-            const moonCount = n.type === 'boss'
-                ? Math.floor(Math.random() * 4) + 3
-                : Math.floor(Math.random() * 3) + 1;
-
-            for (let i = 0; i < moonCount; i++) {
-                const moon = new Node(null, true);
-                moon.parent      = n;
-                moon.orbitRadius = n.size / 2 + moon.size / 2 + 12 + Math.random() * 20;
-                moon.orbitSpeed  = (Math.random() > 0.5 ? 1 : -1) * (0.3 + Math.random() * 0.4);
-                moon.orbitAngle  = (Math.PI * 2 / moonCount) * i;
-
-                // Set initial world position so the moon doesn't flash at origin
-                moon.x = n.x + Math.cos(moon.orbitAngle) * moon.orbitRadius;
-                moon.y = n.y + Math.sin(moon.orbitAngle) * moon.orbitRadius;
-
-                nodes.push(moon);
+            for (const key in NODE_DEFS) {
+                if (NODE_DEFS[key].isSystem) continue;
+                const el = document.createElement('div');
+                el.className = 'blueprint-item';
+                el.innerHTML = `${NODE_DEFS[key].icon} ${NODE_DEFS[key].title}`;
+                el.onclick   = () => openBlueprint(key, el);
+                list.appendChild(el);
             }
         }
-    }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Round management
-    // ─────────────────────────────────────────────────────────────────────────
+        // =========================================================
+        // IDE — OPEN BLUEPRINT
+        // =========================================================
+        function openBlueprint(defId, el) {
+            if (isCompiling) return;
 
-    function endRound() {
-        if (gameState === 'modal') return;   // guard against double-call
-        gameState = 'modal';
+            document.querySelectorAll('.blueprint-item').forEach(i => i.classList.remove('active'));
+            if (el) el.classList.add('active');
 
-        // Tally session rewards into persistent save
-        savedFragments += sessionFragments;
-        const newData   = Math.floor(savedFragments / 3);
-        savedData      += newData;
-        savedFragments  = savedFragments % 3;
-        savedXp        += sessionXp;
-        saveData();
+            activeBlueprint = defId;
+            const def = NODE_DEFS[defId];
 
-        // Populate modal stats
-        document.getElementById('stat-time').textContent         = formatTime(sessionTime);
-        document.getElementById('stat-nodes').textContent        = sessionNodes;
-        document.getElementById('stat-session-frags').textContent = `+${sessionFragments}`;
-        document.getElementById('stat-banked-data').textContent  = savedData;
-        document.getElementById('stat-xp').textContent           = savedXp;
+            document.getElementById('ide-title').textContent      = def.title;
+            document.getElementById('ide-title').style.color      = def.color;
+            document.getElementById('ide-status').textContent     = 'AWAITING FRAGMENTS...';
 
-        document.getElementById('modal-overlay').style.display = 'flex';
-    }
+            renderIDECode();
+            logConsole(`> Loaded blueprint: ${def.title}.`);
 
-    function startNewRound() {
-        // Reset session state
-        playerHealth     = MAX_HEALTH;
-        sessionFragments = 0;
-        sessionNodes     = 0;
-        sessionXp        = 0;
-        sessionTime      = 0;
-        bossProgress     = 0;
-        spawnAccumulator = 0;
-        prevLevel        = getLevel(savedXp);
-
-        nodes     = [];
-        fragments = [];
-
-        progressFill.style.width = '0%';
-
-        // Initial wave of 3 nodes
-        for (let i = 0; i < 3; i++) spawnNodeWithMoons();
-
-        document.getElementById('modal-overlay').style.display = 'none';
-        gameState = 'playing';
-        lastTime  = performance.now();
-        requestAnimationFrame(loop);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Main game loop
-    // ─────────────────────────────────────────────────────────────────────────
-
-    function loop(now) {
-        if (gameState !== 'playing') return;
-
-        const dt = Math.min((now - lastTime) / 1000, 0.1); // cap at 100ms to prevent spiral-of-death
-        lastTime = now;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // ── Timer ─────────────────────────────────────────────────────
-        sessionTime += dt;
-        document.getElementById('time-display').textContent = formatTime(sessionTime);
-
-        // ── Passive health drain (scales slowly over time) ────────────
-        const idleDegen = IDLE_DEGEN_BASE + sessionTime * IDLE_DEGEN_SCALE;
-        playerHealth -= idleDegen * dt;
-
-        // ── Spawn pacing ──────────────────────────────────────────────
-        // Count only primary (non-moon) nodes for the cap.
-        const primaryCount    = nodes.filter(n => n.parent === null && n.type !== 'moon').length;
-        const maxPrimary      = 8 + Math.floor(sessionTime * 1.2);
-        const spawnsPerSecond = 1.0 + sessionTime * 0.1;
-
-        spawnAccumulator += spawnsPerSecond * dt;
-        while (spawnAccumulator >= 1.0) {
-            if (primaryCount < maxPrimary) spawnNodeWithMoons();
-            spawnAccumulator -= 1.0;
+            // Warn about missing fragments
+            let missing = false;
+            for (let i = 0; i < def.codeLines.length; i++) {
+                if (!blueprintDrafts[defId][i] && !(invFragments[defId]?.[i] > 0)) {
+                    missing = true;
+                }
+            }
+            if (missing) logConsole('> WARNING: Insufficient fragments detected.');
         }
 
-        // ── Difficulty scalar (time-based damage multiplier) ──────────
-        const timeMult = 1 + sessionTime * 0.015;
+        // =========================================================
+        // IDE — RENDER CODE EDITOR
+        // =========================================================
+        function renderIDECode() {
+            if (!activeBlueprint) return;
 
-        // ── Update & interact with nodes ──────────────────────────────
-        let highestHackProg  = 0;   // used to draw cursor arc
-        let tookBurstDamage  = false;
+            const def    = NODE_DEFS[activeBlueprint];
+            const draft  = blueprintDrafts[activeBlueprint];
+            const editor = document.getElementById('ide-editor');
+            editor.innerHTML = '';
 
-        for (let i = nodes.length - 1; i >= 0; i--) {
-            const n    = nodes[i];
-            n.update(dt);
+            def.codeLines.forEach((lineHtml, i) => {
+                const container = document.createElement('div');
+                container.className = 'ide-line-container';
 
-            const dist   = Math.hypot(n.x - mouse.x, n.y - mouse.y);
-            const inRange = dist <= mouse.radius + n.size / 2;
+                const lineNum = document.createElement('div');
+                lineNum.className = 'ide-line-num';
+                lineNum.textContent = i + 1;
 
-            if (inRange) {
-                // Continuous proximity damage
-                playerHealth -= 0.4 * timeMult * dt;
+                const lineEl = document.createElement('div');
+                lineEl.id        = `ide-line-${i}`;
+                lineEl.className = `ide-line ${draft[i] ? 'filled' : 'ghost'}`;
+                lineEl.innerHTML = def.statName
+                    ? lineHtml
+                        .replace('{BASE}', PLAYER_STATS[def.statBase].toFixed(1))
+                        .replace('{MOD}',  def.baseMod.toFixed(1))
+                    : lineHtml;
 
-                // Hack tick — charges over HACK_TIME_MS ms
-                n.hackTimer += dt * 1000;
-                if (n.hackTimer >= HACK_TIME_MS) {
-                    n.health    -= HACK_DAMAGE;
-                    n.flash      = 5;
-                    n.hackTimer  = 0;
-                    playerHealth -= n.baseThorns * timeMult;
-                    tookBurstDamage = true;
+                container.appendChild(lineNum);
+                container.appendChild(lineEl);
+                editor.appendChild(container);
+            });
+        }
 
-                    if (n.health <= 0) {
-                        // Node destroyed
-                        sessionNodes++;
-                        bossProgress += n.progValue;
+        // =========================================================
+        // IDE — INJECT FRAGMENT
+        // FIX: Removed forced tab-switch after injection (was ripping
+        //      UI away during rapid mobile taps).
+        // FIX: Added `void lineEl.offsetWidth` DOM reflow before
+        //      applying the 'typing' class so CSS animation triggers
+        //      correctly every time — not just on first inject.
+        // =========================================================
+        function injectFragmentToIDE(defId, partIdx, skipCompileCheck = false) {
+            if (isCompiling) return;
 
-                        // Spawn boss if threshold met
-                        if (bossProgress >= BOSS_THRESHOLD) {
-                            bossProgress = 0;
-                            spawnNodeWithMoons('boss');
-                        }
-                        progressFill.style.width = Math.min((bossProgress / BOSS_THRESHOLD) * 100, 100) + '%';
+            // Auto-switch blueprint context if needed
+            if (activeBlueprint !== defId) {
+                openBlueprint(defId, document.querySelector(`.blueprint-item[data-def="${defId}"]`));
+            }
 
-                        // Drop fragments
-                        for (let f = 0; f < n.dropAmount; f++) {
-                            fragments.push(new Fragment(n.x, n.y));
-                        }
+            if (blueprintDrafts[defId][partIdx]) {
+                showToast(`Line ${partIdx + 1} already compiled.`);
+                return;
+            }
 
-                        // Remove this node — if it was a parent, orphan its moons
-                        // (orphaned moons will drift freely until destroyed)
-                        for (const other of nodes) {
-                            if (other.parent === n) other.parent = null;
-                        }
-                        nodes.splice(i, 1);
-                        continue;
+            // Consume fragment
+            invFragments[defId][partIdx]--;
+            renderInventory();
+            blueprintDrafts[defId][partIdx] = true;
+
+            // Animate the line — force DOM reflow first so the animation
+            // re-triggers even if the class was previously applied.
+            const lineEl = document.getElementById(`ide-line-${partIdx}`);
+            if (lineEl) {
+                lineEl.classList.remove('ghost', 'typing', 'filled');
+                void lineEl.offsetWidth; // ← forces browser reflow
+                lineEl.classList.add('typing');
+                lineEl.addEventListener('animationend', () => {
+                    lineEl.classList.remove('typing');
+                    lineEl.classList.add('filled');
+                }, { once: true });
+            }
+
+            logConsole(`> Injected fragment → Line ${partIdx + 1}.`);
+
+            // Persist the draft state change immediately
+            autoSave();
+
+            // Trigger compile if all lines are now filled
+            if (!skipCompileCheck && blueprintDrafts[defId].every(v => v === true)) {
+                isCompiling = true;
+                document.getElementById('ide-status').textContent = 'COMPILING...';
+                setTimeout(() => runCompileSequence(defId), 800);
+            }
+        }
+
+        // =========================================================
+        // IDE — AUTO-FILL
+        // Attempts to fill all unfilled blueprint lines from inventory.
+        // Blocked entirely if no fragments are owned for this blueprint.
+        // =========================================================
+        function autoFillIDE() {
+            if (!activeBlueprint || isCompiling) return;
+
+            const defId   = activeBlueprint;
+            const fragMap = invFragments[defId] || {};
+
+            // Check if ANY fragment is available for this blueprint
+            const anyAvailable = NODE_DEFS[defId].codeLines.some((_, i) =>
+                !blueprintDrafts[defId][i] && (fragMap[i] || 0) > 0
+            );
+
+            if (!anyAvailable) {
+                logConsole('> ERROR: No fragments for this blueprint. Earn them through gameplay.');
+                showToast('NO FRAGMENTS AVAILABLE');
+                return;
+            }
+
+            let missing = false;
+            for (let i = 0; i < NODE_DEFS[defId].codeLines.length; i++) {
+                if (!blueprintDrafts[defId][i]) {
+                    if ((fragMap[i] || 0) > 0) {
+                        injectFragmentToIDE(defId, i, true);
+                    } else {
+                        missing = true;
                     }
                 }
-
-                highestHackProg = Math.max(highestHackProg, n.hackTimer);
             }
 
-            n.draw(inRange);
+            if (missing) {
+                logConsole('> WARNING: Some fragments still missing — obtain them to complete compilation.');
+                showToast('INCOMPLETE FRAGMENTS');
+            }
+
+            if (blueprintDrafts[defId].every(v => v === true)) {
+                isCompiling = true;
+                document.getElementById('ide-status').textContent = 'COMPILING...';
+                setTimeout(() => runCompileSequence(defId), 800);
+            }
         }
 
-        if (tookBurstDamage) triggerDamageFlash();
+        // =========================================================
+        // IDE — COMPILE SEQUENCE
+        // =========================================================
+        function runCompileSequence(defId) {
+            logConsole('> Initiating compile sequence...');
+            setTimeout(() => logConsole('> Syntax check: OK.'),   300);
+            setTimeout(() => logConsole('> Link pass: OK.'),       600);
+            setTimeout(() => {
+                document.getElementById('ide-status').textContent = 'SUCCESS';
+                stashNodes.push({ id: 'sn_' + Math.random().toString(36).substr(2, 6), defId, tier: 0 });
+                renderStash();
+                renderMacros();
+                blueprintDrafts[defId].fill(false);
+                isCompiling = false;
+                autoSave(); // persist new stash node + reset draft
 
-        // ── Update & collect fragments ─────────────────────────────────
-        for (let i = fragments.length - 1; i >= 0; i--) {
-            if (fragments[i].update(dt)) {
-                sessionFragments++;
-                sessionXp += 2;
-                fragments.splice(i, 1);
+                document.getElementById('modal-title').textContent = `${NODE_DEFS[defId].title} COMPILED`;
+                document.getElementById('modal-overlay').style.display = 'flex';
+            }, 1000);
+        }
+
+        function logConsole(msg) {
+            const cons = document.getElementById('ide-console');
+            const div  = document.createElement('div');
+            div.textContent = msg;
+            cons.appendChild(div);
+            cons.scrollTop = cons.scrollHeight;
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').style.display = 'none';
+            renderIDECode();
+        }
+
+        // =========================================================
+        // CANVAS — DEPLOY NODE
+        // forceId: optional stable ID override (used for system nodes
+        //          so their IDs survive save/reload and wire connections
+        //          to them are correctly remapped on load).
+        // =========================================================
+        function deployNodeToCanvas(defId, tier, x, y, isSystem = false, forceId = null) {
+            const def  = NODE_DEFS[defId];
+            const node = {
+                id:       forceId || ('n_' + Math.random().toString(36).substr(2, 6)),
+                defId, tier, x, y,
+                element:  null,
+                isSystem
+            };
+
+            const el = document.createElement('div');
+            el.className    = `node ${def.typeClass}`;
+            el.style.left   = node.x + 'px';
+            el.style.top    = node.y + 'px';
+            el.style.zIndex = nodes.length + 10;
+
+            // Build port HTML for inputs (left) and outputs (right)
+            const inHTML  = def.inputs.map(p =>
+                `<div class="port-row">
+                    <div class="port ${p.type}" data-node="${node.id}" data-port="${p.id}" data-io="in" data-type="${p.type}"></div>
+                    <span>${p.label}</span>
+                </div>`
+            ).join('');
+
+            const outHTML = def.outputs.map(p =>
+                `<div class="port-row">
+                    <span>${p.label}</span>
+                    <div class="port ${p.type}" data-node="${node.id}" data-port="${p.id}" data-io="out" data-type="${p.type}"></div>
+                </div>`
+            ).join('');
+
+            el.innerHTML = `
+                <div class="node-header">
+                    <span>${def.icon} ${def.title}</span>
+                    <div style="display:flex;align-items:center;gap:4px;">
+                        ${isSystem ? '' : `<span style="color:#445;font-size:9px;letter-spacing:1px;">T${tier}</span>`}
+                        ${isSystem ? '' : `<span class="node-close" onclick="deleteNodeFromCanvas('${node.id}')">×</span>`}
+                    </div>
+                </div>
+                <div class="node-body">
+                    <div class="port-group">${inHTML}</div>
+                    <div class="port-group port-out-group">${outHTML}</div>
+                </div>
+            `;
+
+            node.element = el;
+            nLayer.appendChild(el);
+            nodes.push(node);
+
+            // ---- Drag / select handler ----
+            // We distinguish a "click" (pointer didn't move significantly)
+            // from a "drag" (pointer moved). On mobile the inspector opens
+            // only on a genuine tap; dragging a node must never trigger it.
+            let _downX = 0, _downY = 0, _didDrag = false;
+
+            const onNodeDown = e => {
+                if (e.target.classList.contains('node-close')) return;
+                const c = getPointerCoords(e);
+                _downX   = c.x;
+                _downY   = c.y;
+                _didDrag = false;
+
+                if (e.target.closest('.node-header')) {
+                    e.stopPropagation();
+                    draggedNode  = node;
+                    const r      = el.getBoundingClientRect();
+                    dragOffset.x = (c.x - r.left) / camScale;
+                    dragOffset.y = (c.y - r.top)  / camScale;
+                }
+            };
+
+            const onNodeMove = e => {
+                if (!_didDrag) {
+                    const c  = getPointerCoords(e);
+                    const dx = c.x - _downX;
+                    const dy = c.y - _downY;
+                    // Mark as a drag after 6px of movement
+                    if (Math.sqrt(dx * dx + dy * dy) > 6) _didDrag = true;
+                }
+            };
+
+            const onNodeUp = e => {
+                // Don't select node if we were drawing a wire — snap logic handles it
+                if (drawingWire) return;
+                // Only open inspector on a genuine tap/click (no meaningful movement)
+                if (!_didDrag && !e.target.classList.contains('node-close')) {
+                    selectNodeCanvas(node);
+                }
+            };
+
+            el.addEventListener('mousedown',  onNodeDown);
+            el.addEventListener('touchstart', onNodeDown,  { passive: true });
+            el.addEventListener('mousemove',  onNodeMove);
+            el.addEventListener('touchmove',  onNodeMove,  { passive: true });
+            el.addEventListener('mouseup',    onNodeUp);
+            el.addEventListener('touchend',   onNodeUp,    { passive: true });
+
+            // Port wire events
+            el.querySelectorAll('.port').forEach(p => {
+                const onPortDown = e => { e.stopPropagation(); startWireDrag(p); };
+                p.addEventListener('mousedown',  onPortDown);
+                p.addEventListener('touchstart', onPortDown, { passive: false });
+                // NOTE: No mouseup/touchend here — let events bubble to onGlobalPointerUp
+                // so the proximity snap logic handles all wire completion uniformly.
+            });
+
+            // Persist the new node (skip during init/load to avoid spurious saves)
+            if (!isSystem) autoSave();
+
+            return node;
+        }
+
+        // =========================================================
+        // CANVAS — DELETE NODE
+        // =========================================================
+        function deleteNodeFromCanvas(nodeId) {
+            const idx = nodes.findIndex(n => n.id === nodeId);
+            if (idx > -1 && !nodes[idx].isSystem) {
+                // Return node to stash
+                stashNodes.push({ id: 'sn_' + Math.random().toString(36).substr(2, 6), defId: nodes[idx].defId, tier: nodes[idx].tier });
+                renderStash();
+                renderMacros();
+                // Remove all connected wires
+                connections = connections.filter(c => c.fromNode !== nodeId && c.toNode !== nodeId);
+                nodes[idx].element.remove();
+                nodes.splice(idx, 1);
+                updateWires();
+                selectNodeCanvas(null);
+                autoSave(); // persist node removal
+            }
+        }
+
+        // =========================================================
+        // CANVAS — SELECT NODE / INSPECTOR
+        // FIX: Added safe-guard around def.codeLines before calling
+        //      .join() — prevents the TypeError when codeLines is
+        //      undefined (e.g. on system nodes with no code lines).
+        // =========================================================
+        function selectNodeCanvas(node) {
+            selectedNode = node;
+            document.querySelectorAll('.node').forEach(n => n.classList.remove('selected'));
+
+            if (!node) {
+                document.getElementById('right-panel').classList.remove('open');
+                document.getElementById('inspector-default').style.display = 'block';
+                document.getElementById('inspector-content').style.display = 'none';
+                return;
+            }
+
+            node.element.classList.add('selected');
+            document.getElementById('right-panel').classList.add('open');
+            document.getElementById('inspector-default').style.display = 'none';
+            document.getElementById('inspector-content').style.display = 'flex';
+
+            const def = NODE_DEFS[node.defId];
+            document.getElementById('insp-title').textContent      = def.title;
+            document.getElementById('insp-title').style.color      = def.color;
+            document.getElementById('insp-tier').textContent       = node.isSystem ? 'SYS' : 'T' + node.tier;
+            document.getElementById('insp-desc').textContent       = def.desc || '';
+
+            // Safe code preview: only call .join if codeLines exists
+            const lines     = Array.isArray(def.codeLines) ? def.codeLines : [];
+            const rawCode   = lines.join('\n');
+
+            if (def.statName && !node.isSystem) {
+                const base  = PLAYER_STATS[def.statBase] || 0;
+                const mod   = def.baseMod * (1 + node.tier * 0.5);
+                const total = base + mod;
+
+                document.getElementById('insp-stat-name').textContent = def.statName.toUpperCase();
+                document.getElementById('insp-base').textContent      = base.toFixed(1);
+                document.getElementById('insp-mod').textContent       = '+' + mod.toFixed(1);
+                document.getElementById('insp-total').textContent     = total.toFixed(1);
+                document.getElementById('insp-stats').style.display   = 'block';
+
+                document.getElementById('insp-code').innerHTML = rawCode
+                    .replace('{BASE}', base.toFixed(1))
+                    .replace('{MOD}',  mod.toFixed(1));
             } else {
-                fragments[i].draw();
+                document.getElementById('insp-stats').style.display = 'none';
+                document.getElementById('insp-code').innerHTML      = rawCode;
             }
         }
 
-        // ── Death check ───────────────────────────────────────────────
-        if (playerHealth <= 0) {
-            playerHealth = 0;
-            updateHUD(0);
-            endRound();
-            return;
+        // =========================================================
+        // CANVAS — POINTER EVENTS
+        // =========================================================
+        function getPointerCoords(e) {
+            return (e.touches && e.touches.length > 0)
+                ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+                : { x: e.clientX, y: e.clientY };
         }
 
-        // ── HUD update ────────────────────────────────────────────────
-        updateHUD(dt);
+        function onCanvasPointerDown(e) {
+            const isBackground = e.target === ws
+                || e.target.id === 'canvas-inner'
+                || e.target.id === 'wire-layer'
+                || e.target.tagName === 'path' && e.target.closest('#wire-layer');
 
-        // ── Draw cursor ───────────────────────────────────────────────
-        drawCursor(now, highestHackProg);
+            if (isBackground) {
+                const c = getPointerCoords(e);
+                // Start sever hold-check (activates after 120ms if nothing else begins)
+                _startSeverCheck(c.x, c.y);
 
-        requestAnimationFrame(loop);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // HUD update helper (keeps the loop body lean)
-    // ─────────────────────────────────────────────────────────────────────────
-    function updateHUD() {
-        // Health bar
-        const hPct = (playerHealth / MAX_HEALTH) * 100;
-        document.getElementById('health-fill').style.width = hPct + '%';
-        document.getElementById('health-text').textContent =
-            `${playerHealth.toFixed(1)}/${MAX_HEALTH.toFixed(1)}`;
-
-        // Fragment counter
-        fragDisplay.textContent = `DATA_FRAGS: ${sessionFragments}`;
-
-        // XP bar & level
-        const totalXp   = savedXp + sessionXp;
-        const level     = getLevel(totalXp);
-        const xpInLevel = totalXp % XP_TO_LEVEL;
-        const xpPct     = Math.min((xpInLevel / XP_TO_LEVEL) * 100, 100).toFixed(0);
-        document.getElementById('xp-fill').style.width   = xpPct + '%';
-        document.getElementById('xp-text').textContent   = xpPct + '%';
-        levelDisplay.textContent = `LVL ${level}`;
-
-        // Level-up notification
-        if (level > prevLevel) {
-            prevLevel = level;
-            triggerLevelUp();
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Cursor drawing helper
-    // ─────────────────────────────────────────────────────────────────────────
-    function drawCursor(now, hackProgress) {
-        ctx.save();
-
-        // Pulsing ring
-        const pulse = 0.4 + 0.4 * Math.sin(now / 150);
-        ctx.beginPath();
-        ctx.arc(mouse.x, mouse.y, mouse.radius, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(0, 229, 255, ${pulse})`;
-        ctx.lineWidth   = 2;
-        ctx.stroke();
-
-        // Hack-progress arc
-        if (hackProgress > 0) {
-            const start = -Math.PI / 2;
-            const end   = start + (hackProgress / HACK_TIME_MS) * Math.PI * 2;
-
-            // Track background
-            ctx.beginPath();
-            ctx.arc(mouse.x, mouse.y, mouse.radius + 6, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(0, 229, 255, 0.15)';
-            ctx.lineWidth   = 4;
-            ctx.stroke();
-
-            // Progress arc
-            ctx.beginPath();
-            ctx.arc(mouse.x, mouse.y, mouse.radius + 6, start, end);
-            ctx.strokeStyle = '#00e5ff';
-            ctx.lineCap     = 'round';
-            ctx.lineWidth   = 4;
-            ctx.stroke();
+                isPanning  = true;
+                selectNodeCanvas(null);
+                panStartX  = c.x - camX;
+                panStartY  = c.y - camY;
+            }
         }
 
-        // Centre dot
-        ctx.fillStyle = '#00e5ff';
-        ctx.fillRect(mouse.x - 2, mouse.y - 2, 4, 4);
+        function onGlobalPointerMove(e) {
+            const c = getPointerCoords(e);
 
-        ctx.restore();
-    }
+            if (_severActive) {
+                e.preventDefault();
+                _addSeverPoint(c.x, c.y);
+                return; // sever mode takes priority — don't also pan
+            }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Boot — initial wave, then start loop
-    // ─────────────────────────────────────────────────────────────────────────
-    for (let i = 0; i < 3; i++) spawnNodeWithMoons();
-    requestAnimationFrame(loop);
-</script>
+            if (isPanning) {
+                e.preventDefault();
+                // If the pointer moves while the sever timer is still pending,
+                // cancel the sever — user is panning, not severing
+                _cancelSeverCheck();
+                camX = c.x - panStartX;
+                camY = c.y - panStartY;
+                updateCanvasTransform();
+
+            } else if (draggedNode) {
+                e.preventDefault();
+                _cancelSeverCheck();
+                const r        = ws.getBoundingClientRect();
+                draggedNode.x  = (c.x - r.left - camX) / camScale - dragOffset.x;
+                draggedNode.y  = (c.y - r.top  - camY) / camScale - dragOffset.y;
+                draggedNode.element.style.left = draggedNode.x + 'px';
+                draggedNode.element.style.top  = draggedNode.y + 'px';
+                updateWires();
+
+            } else if (drawingWire) {
+                e.preventDefault();
+                _cancelSeverCheck();
+                const r  = ws.getBoundingClientRect();
+                const tx = (c.x - r.left - camX) / camScale;
+                const ty = (c.y - r.top  - camY) / camScale;
+                wLayer.innerHTML = '';
+                redrawExistingWires();
+                const s = getPortPos(wireStartNode.id, wireStartPort.dataset.port);
+                if (s) drawBez(s.x, s.y, tx, ty, wireStartPort.dataset.type, 'temp', true);
+            }
+        }
+
+        function onGlobalPointerUp(e) {
+            _cancelSeverCheck();
+
+            // Commit any active sever gesture first
+            if (_severActive) {
+                _commitSever();
+                isPanning = false;
+                return;
+            }
+
+            const wasDraggingNode = !!draggedNode;
+            isPanning   = false;
+            draggedNode = null;
+
+            if (wasDraggingNode) autoSave();
+
+            if (!drawingWire) return;
+            // NOTE: do NOT set drawingWire=false here — finishWireDrag does it.
+            // Setting it before calling finishWireDrag caused finishWireDrag to
+            // immediately return via its own guard check, dropping the connection.
+
+            const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+            const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+
+            // Convert release point from screen-space → canvas-space
+            const wsRect  = ws.getBoundingClientRect();
+            const canvasX = (clientX - wsRect.left - camX) / camScale;
+            const canvasY = (clientY - wsRect.top  - camY) / camScale;
+
+
+
+            let bestPort = null;
+            let bestDist = Infinity;
+
+            // Pass 1: exact DOM element hit
+            const exactEl = document.elementFromPoint(clientX, clientY);
+            if (exactEl?.classList.contains('port') && exactEl.dataset.io === 'in') {
+                bestPort = exactEl;
+            }
+
+            // Pass 2: proximity scan
+            if (!bestPort) {
+                const SNAP_R = 80;
+                for (const node of nodes) {
+                    if (wireStartNode && node.id === wireStartNode.id) continue;
+                    const def = NODE_DEFS[node.defId];
+                    if (!def.inputs?.length) continue;
+
+                    for (const portDef of def.inputs) {
+                        const portEl = node.element.querySelector(
+                            `[data-port="${portDef.id}"][data-io="in"]`
+                        );
+                        if (!portEl) continue;
+
+                        const pos  = getPortCanvasPos(portEl);
+                        const dist = Math.hypot(canvasX - pos.x, canvasY - pos.y);
+                        if (dist < SNAP_R && dist < bestDist) {
+                            bestDist = dist;
+                            bestPort = portEl;
+                        }
+                    }
+                }
+            }
+
+            if (bestPort) {
+                finishWireDrag(bestPort);
+            } else {
+                // No port found — cancel the wire draw cleanly
+                drawingWire   = false;
+                wireStartPort = null;
+                wireStartNode = null;
+                updateWires();
+            }
+        }
+
+        function onCanvasWheel(e) {
+            e.preventDefault();
+            const z   = e.deltaY > 0 ? 0.9 : 1.1;
+            const r   = ws.getBoundingClientRect();
+            const tx  = (e.clientX - r.left - camX) / camScale;
+            const ty  = (e.clientY - r.top  - camY) / camScale;
+
+            camScale  = Math.max(0.25, Math.min(camScale * z, 3.0));
+            camX      = (e.clientX - r.left) - tx * camScale;
+            camY      = (e.clientY - r.top)  - ty * camScale;
+
+            updateCanvasTransform();
+            updateWires();
+        }
+
+        function updateCanvasTransform() {
+            canvasInner.style.transform = `translate(${camX}px, ${camY}px) scale(${camScale})`;
+        }
+
+        // =========================================================
+        // RESPONSIVE RECENTERING
+        // On window resize, keep the same canvas-space point at the
+        // viewport centre — nodes stay in view without panning.
+        // Key fix: capture the canvas-centre point BEFORE the rAF,
+        // then apply camX/Y INSIDE the rAF after DOM reflow completes.
+        // =========================================================
+        window.addEventListener('resize', () => {
+            // Capture current viewport centre in canvas-space NOW (pre-reflow)
+            const wsRect     = ws.getBoundingClientRect();
+            const oldCentreX = (wsRect.width  / 2 - camX) / camScale;
+            const oldCentreY = (wsRect.height / 2 - camY) / camScale;
+
+            requestAnimationFrame(() => {
+                // After DOM reflow, ws has new dimensions — recompute cam offset
+                const newRect = ws.getBoundingClientRect();
+                camX = newRect.width  / 2 - oldCentreX * camScale;
+                camY = newRect.height / 2 - oldCentreY * camScale;
+                updateCanvasTransform();
+                updateWires();
+            });
+        });
+
+        // =========================================================
+        // SWIPE-TO-SEVER
+        // Player draws a quick stroke across the wire layer to sever
+        // any wires it crosses. Works on both desktop (mouse) and
+        // mobile (touch). No right-click required.
+        //
+        // Gesture: press & hold briefly on the empty canvas (not on
+        // a node or port), then drag across a wire. The sever stroke
+        // is shown as a red dashed line and any wire it intersects
+        // is removed.
+        // =========================================================
+        let _severActive  = false;
+        let _severPath    = []; // { x, y } points in canvas-space
+        let _severStartT  = 0;
+        let _severEl      = null; // temp SVG line shown during gesture
+
+        // Sever mode activates when the user holds on empty canvas for >120ms
+        // without starting to pan/drag a node. We detect this via a timeout on
+        // canvas pointer-down on background elements.
+        let _severHoldTimer = null;
+
+        function _startSeverCheck(clientX, clientY) {
+            _severHoldTimer = setTimeout(() => {
+                _severActive = true;
+                _severPath   = [];
+                _severStartT = Date.now();
+                const wsRect = ws.getBoundingClientRect();
+                _severPath.push({
+                    x: (clientX - wsRect.left - camX) / camScale,
+                    y: (clientY - wsRect.top  - camY) / camScale
+                });
+                ws.style.cursor = 'crosshair';
+            }, 120);
+        }
+
+        function _cancelSeverCheck() {
+            clearTimeout(_severHoldTimer);
+            _severHoldTimer = null;
+        }
+
+        function _addSeverPoint(clientX, clientY) {
+            if (!_severActive) return;
+            const wsRect = ws.getBoundingClientRect();
+            _severPath.push({
+                x: (clientX - wsRect.left - camX) / camScale,
+                y: (clientY - wsRect.top  - camY) / camScale
+            });
+            _drawSeverLine();
+        }
+
+        function _drawSeverLine() {
+            if (_severEl) _severEl.remove();
+            if (_severPath.length < 2) return;
+            const pts  = _severPath.map(p => `${p.x},${p.y}`).join(' ');
+            const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+            poly.setAttribute('points', pts);
+            poly.setAttribute('stroke', 'rgba(255,0,127,0.7)');
+            poly.setAttribute('stroke-width', '2');
+            poly.setAttribute('stroke-dasharray', '6 3');
+            poly.setAttribute('fill', 'none');
+            poly.setAttribute('pointer-events', 'none');
+            wLayer.appendChild(poly);
+            _severEl = poly;
+        }
+
+        function _commitSever() {
+            if (!_severActive) return;
+            _severActive    = false;
+            ws.style.cursor = '';
+            if (_severEl) { _severEl.remove(); _severEl = null; }
+
+            if (_severPath.length < 2) { _severPath = []; return; }
+
+            // Check each consecutive segment of the sever stroke against each wire.
+            // A wire is severed if any sever segment crosses its bezier curve.
+            // We approximate the bezier with 40 line segments for the intersection test.
+            const severed = new Set();
+
+            for (let si = 0; si < _severPath.length - 1; si++) {
+                const s1 = _severPath[si], s2 = _severPath[si + 1];
+
+                for (const conn of connections) {
+                    if (severed.has(conn.id)) continue;
+                    const src = getPortPos(conn.fromNode, conn.fromPort);
+                    const dst = getPortPos(conn.toNode,   conn.toPort);
+                    if (!src || !dst) continue;
+
+                    // Sample the bezier at N points and check each segment
+                    const N    = 40;
+                    const off  = Math.max(Math.abs(dst.x - src.x) * 0.5, 50);
+                    let prev   = null;
+                    for (let t = 0; t <= N; t++) {
+                        const u  = t / N;
+                        // Cubic bezier: P = (1-u)^3*P0 + 3(1-u)^2u*P1 + 3(1-u)u^2*P2 + u^3*P3
+                        const u1 = 1 - u;
+                        const bx = u1**3 * src.x + 3*u1**2*u*(src.x+off) + 3*u1*u**2*(dst.x-off) + u**3*dst.x;
+                        const by = u1**3 * src.y + 3*u1**2*u*src.y       + 3*u1*u**2*dst.y       + u**3*dst.y;
+                        const cur = { x: bx, y: by };
+                        if (prev && _segmentsIntersect(s1, s2, prev, cur)) {
+                            severed.add(conn.id);
+                            break;
+                        }
+                        prev = cur;
+                    }
+                }
+            }
+
+            if (severed.size > 0) {
+                connections = connections.filter(c => !severed.has(c.id));
+                updateWires();
+                autoSave();
+                showToast(severed.size === 1 ? 'WIRE SEVERED' : `${severed.size} WIRES SEVERED`);
+            }
+            _severPath = [];
+        }
+
+        // Line-segment intersection test (2D)
+        function _segmentsIntersect(a1, a2, b1, b2) {
+            const d1x = a2.x - a1.x, d1y = a2.y - a1.y;
+            const d2x = b2.x - b1.x, d2y = b2.y - b1.y;
+            const cross = d1x * d2y - d1y * d2x;
+            if (Math.abs(cross) < 1e-10) return false; // parallel
+            const dx  = b1.x - a1.x, dy = b1.y - a1.y;
+            const t   = (dx * d2y - dy * d2x) / cross;
+            const u   = (dx * d1y - dy * d1x) / cross;
+            return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+        }
+
+        // =========================================================
+        // WIRING LOGIC
+        // =========================================================
+        function startWireDrag(portEl) {
+            // Only allow dragging from output ports
+            if (portEl.dataset.io !== 'out') return;
+            drawingWire    = true;
+            wireStartPort  = portEl;
+            wireStartNode  = nodes.find(n => n.id === portEl.dataset.node);
+            updateWires();
+        }
+
+        function drawBez(x1, y1, x2, y2, cls, id, isTemp = false) {
+            const off      = Math.max(Math.abs(x2 - x1) * 0.5, 50);
+            const pathData = `M ${x1} ${y1} C ${x1 + off} ${y1}, ${x2 - off} ${y2}, ${x2} ${y2}`;
+            const path     = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', pathData);
+            path.setAttribute('class', `wire ${cls}${isTemp ? ' temp' : ''}`);
+            // Right-click as a desktop fallback; primary deletion is swipe-to-sever.
+            if (!isTemp) {
+                path.addEventListener('contextmenu', e => {
+                    e.preventDefault();
+                    connections = connections.filter(c => c.id !== id);
+                    updateWires();
+                    autoSave();
+                });
+            }
+            wLayer.appendChild(path);
+        }
+
+        function finishWireDrag(targetPortEl) {
+            if (!drawingWire) return;
+            drawingWire = false;
+            if (!targetPortEl) { updateWires(); return; }
+
+            const fromType = wireStartPort.dataset.type;
+            const toType   = targetPortEl.dataset.type;
+            const isInput  = targetPortEl.dataset.io === 'in';
+
+            let wireAdded = false;
+
+            if (isInput && fromType === toType && wireStartNode.id !== targetPortEl.dataset.node) {
+                const targetNode = nodes.find(n => n.id === targetPortEl.dataset.node);
+
+                // sys_out (WAN_Out) allows multiple incoming wires; others do not
+                if (targetNode?.defId !== 'sys_out') {
+                    connections = connections.filter(c =>
+                        !(c.toNode === targetPortEl.dataset.node && c.toPort === targetPortEl.dataset.port)
+                    );
+                }
+
+                connections.push({
+                    id:       'conn_' + Math.random().toString(36).substr(2, 6),
+                    fromNode: wireStartNode.id,
+                    fromPort: wireStartPort.dataset.port,
+                    toNode:   targetPortEl.dataset.node,
+                    toPort:   targetPortEl.dataset.port,
+                    type:     fromType
+                });
+                wireAdded = true;
+            }
+
+            wireStartPort = null;
+            wireStartNode = null;
+            updateWires();
+
+            // Persist immediately any time a wire is successfully added
+            if (wireAdded) autoSave();
+        }
+
+        function getPortPos(nId, pId) {
+            const n = nodes.find(nd => nd.id === nId);
+            if (!n) return null;
+            const pEl = n.element.querySelector(`[data-port="${pId}"]`);
+            if (!pEl) return null;
+            return {
+                x: n.x + pEl.offsetLeft + pEl.offsetWidth  / 2,
+                y: n.y + pEl.offsetTop  + pEl.offsetHeight / 2
+            };
+        }
+
+        // Accurate canvas-space port position using getBoundingClientRect.
+        // Used for snap detection — avoids the offsetParent chain bug in getPortPos.
+        function getPortCanvasPos(portEl) {
+            const r      = portEl.getBoundingClientRect();
+            const wsRect = ws.getBoundingClientRect();
+            return {
+                x: (r.left + r.width  / 2 - wsRect.left - camX) / camScale,
+                y: (r.top  + r.height / 2 - wsRect.top  - camY) / camScale
+            };
+        }
+
+        function redrawExistingWires() {
+            connections.forEach(conn => {
+                const s = getPortPos(conn.fromNode, conn.fromPort);
+                const e = getPortPos(conn.toNode,   conn.toPort);
+                if (s && e) drawBez(s.x, s.y, e.x, e.y, conn.type, conn.id);
+
+                // Mark connected ports visually
+                document.querySelector(`[data-node="${conn.fromNode}"][data-port="${conn.fromPort}"]`)?.classList.add('connected');
+                document.querySelector(`[data-node="${conn.toNode}"][data-port="${conn.toPort}"]`)?.classList.add('connected');
+            });
+        }
+
+        function updateWires() {
+            wLayer.innerHTML = '';
+            redrawExistingWires();
+
+            // Clear 'connected' class from ports that are no longer wired
+            document.querySelectorAll('.port').forEach(p => {
+                const wired = connections.some(c =>
+                    (c.fromNode === p.dataset.node && c.fromPort === p.dataset.port) ||
+                    (c.toNode   === p.dataset.node && c.toPort   === p.dataset.port)
+                );
+                if (!wired) p.classList.remove('connected');
+            });
+        }
+
+        // =========================================================
+        // SAVE / LOAD SYSTEM
+        //
+        // Single localStorage slot: 'nb_save'
+        // Payload captures everything needed to fully reconstruct state:
+        //   invFragments    — fragment inventory counts per node type
+        //   stashNodes      — compiled nodes waiting to be deployed
+        //   blueprintDrafts — which IDE lines have been injected
+        //   nodes           — canvas node positions, defId, tier
+        //                     (system nodes included via systemNodePos map)
+        //   connections     — all wires (fromNode/Port → toNode/Port)
+        //   camX/Y/Scale    — camera transform
+        //
+        // System nodes ('sys_in', 'sys_out') always get stable fixed IDs so
+        // connections to them survive reload. Their positions are saved
+        // separately and applied to the existing DOM nodes on restore.
+        // =========================================================
+
+        const SAVE_KEY     = 'nb_save';
+        const SAVE_VERSION = 1;
+
+        // Guard: prevents autoSave() from firing during applyPayload's
+        // re-deploy loop (which calls deployNodeToCanvas internally).
+        let _suppressAutoSave = false;
+
+        // ---- Debounced auto-save called from every state mutation ----
+        let _autoSaveTimer = null;
+        function autoSave() {
+            if (_suppressAutoSave) return;
+            clearTimeout(_autoSaveTimer);
+            _autoSaveTimer = setTimeout(() => {
+                try {
+                    localStorage.setItem(SAVE_KEY, JSON.stringify(buildSavePayload()));
+                    updateSettingsTimestamp();
+                } catch (err) {
+                    console.warn('Auto-save failed:', err);
+                }
+            }, 400);
+        }
+
+        // ---- Build a serialisable snapshot of current state ----
+        function buildSavePayload() {
+            // Save system node positions so they restore to where the
+            // player last moved them, not back to window-center.
+            const systemNodePos = {};
+            nodes.filter(n => n.isSystem).forEach(n => {
+                systemNodePos[n.id] = { x: n.x, y: n.y };
+            });
+
+            return {
+                version:         SAVE_VERSION,
+                savedAt:         Date.now(),
+                invFragments:    JSON.parse(JSON.stringify(invFragments)),
+                stashNodes:      JSON.parse(JSON.stringify(stashNodes)),
+                blueprintDrafts: JSON.parse(JSON.stringify(blueprintDrafts)),
+                systemNodePos,
+                // User-deployed canvas nodes only (system nodes handled via systemNodePos)
+                nodes: nodes
+                    .filter(n => !n.isSystem)
+                    .map(n => ({ id: n.id, defId: n.defId, tier: n.tier, x: n.x, y: n.y })),
+                connections: JSON.parse(JSON.stringify(connections)),
+                camX, camY, camScale
+            };
+        }
+
+        // ---- Apply a payload back onto live state ----
+        function applyPayload(payload) {
+            if (!payload || payload.version !== SAVE_VERSION) {
+                showToast('INCOMPATIBLE SAVE FORMAT');
+                return false;
+            }
+
+            // Suppress auto-saves triggered by deployNodeToCanvas during this load
+            _suppressAutoSave = true;
+
+            // Restore flat state
+            invFragments    = payload.invFragments    ?? invFragments;
+            stashNodes      = payload.stashNodes      ?? [];
+            blueprintDrafts = payload.blueprintDrafts ?? blueprintDrafts;
+            camX            = payload.camX    ?? 0;
+            camY            = payload.camY    ?? 0;
+            camScale        = payload.camScale ?? 1;
+
+            // Restore saved positions of system nodes (they already exist in
+            // the nodes array from init — just update their x/y and DOM position)
+            const savedSysPos = payload.systemNodePos || {};
+            nodes.filter(n => n.isSystem).forEach(n => {
+                const pos = savedSysPos[n.id];
+                if (pos) {
+                    n.x = pos.x;
+                    n.y = pos.y;
+                    n.element.style.left = pos.x + 'px';
+                    n.element.style.top  = pos.y + 'px';
+                }
+            });
+
+            // Wipe all non-system canvas nodes and connections
+            nodes.filter(n => !n.isSystem).forEach(n => n.element.remove());
+            nodes       = nodes.filter(n => n.isSystem);
+            connections = [];
+
+            // Seed idMap with system nodes — stable fixed IDs mean no remapping needed
+            const idMap = {};
+            nodes.forEach(n => { idMap[n.id] = n.id; });
+
+            // Re-deploy saved user canvas nodes; record old→new id mapping
+            (payload.nodes || []).forEach(nd => {
+                const fresh  = deployNodeToCanvas(nd.defId, nd.tier, nd.x, nd.y, false);
+                idMap[nd.id] = fresh.id;
+            });
+
+            // Restore wire connections, remapping IDs through idMap
+            (payload.connections || []).forEach(c => {
+                const from = idMap[c.fromNode] ?? c.fromNode;
+                const to   = idMap[c.toNode]   ?? c.toNode;
+                if (nodes.find(n => n.id === from) && nodes.find(n => n.id === to)) {
+                    connections.push({
+                        ...c,
+                        id:       'conn_' + Math.random().toString(36).substr(2, 6),
+                        fromNode: from,
+                        toNode:   to
+                    });
+                }
+            });
+
+            // Re-enable auto-save before refreshing UI
+            _suppressAutoSave = false;
+
+            // Refresh all UI panels
+            updateCanvasTransform();
+            updateWires();
+            renderInventory();
+            renderStash();
+            renderMacros();
+            renderBlueprintList();
+            if (activeBlueprint && blueprintDrafts[activeBlueprint]) renderIDECode();
+
+            return true;
+        }
+
+        // ---- Manual save (Settings modal Save button) ----
+        function saveState() {
+            clearTimeout(_autoSaveTimer);
+            try {
+                localStorage.setItem(SAVE_KEY, JSON.stringify(buildSavePayload()));
+            } catch (err) {
+                showToast('SAVE FAILED — STORAGE FULL?');
+                console.warn('Save error:', err);
+                return;
+            }
+            updateSettingsTimestamp();
+            // Flash the save button
+            const btn = document.getElementById('btn-save');
+            if (btn) {
+                btn.classList.add('save-flash');
+                btn.addEventListener('animationend', () => btn.classList.remove('save-flash'), { once: true });
+            }
+            logConsole('> Build saved to local storage.');
+            showToast('BUILD SAVED');
+        }
+
+        // ---- Manual load (Settings modal Load button) ----
+        function loadState() {
+            const raw = localStorage.getItem(SAVE_KEY);
+            if (!raw) { showToast('NO SAVE FOUND'); return; }
+            try {
+                const payload = JSON.parse(raw);
+                if (applyPayload(payload)) {
+                    updateSettingsTimestamp(payload.savedAt);
+                    closeSettings();
+                    showToast('BUILD LOADED');
+                    logConsole('> Build loaded from local storage.');
+                }
+            } catch (err) {
+                showToast('LOAD FAILED — CORRUPT DATA');
+                console.error('Load error:', err);
+            }
+        }
+
+        // ---- Clear save data and reset to defaults ----
+        function clearSave() {
+            if (!confirm('Clear all save data and reset to defaults?')) return;
+            localStorage.removeItem(SAVE_KEY);
+            // Reload the page for a clean state
+            location.reload();
+        }
+
+        // ---- Update the "Last saved" time in the settings modal ----
+        function updateSettingsTimestamp(ts) {
+            const el = document.getElementById('settings-save-time');
+            if (!el) return;
+            const d = ts ? new Date(ts) : new Date();
+            el.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        // ---- Settings modal open / close ----
+        function openSettings() {
+            document.getElementById('settings-overlay').classList.add('open');
+        }
+        function closeSettings() {
+            document.getElementById('settings-overlay').classList.remove('open');
+        }
+        function onSettingsBackdrop(e) {
+            if (e.target === document.getElementById('settings-overlay')) closeSettings();
+        }
+
+        // =========================================================
+        // BOOT
+        // =========================================================
+        init();
+
+        // Auto-restore on page load: silently reload the last save so
+        // every tab-close / refresh is lossless by default.
+        (function autoRestore() {
+            const raw = localStorage.getItem(SAVE_KEY);
+            if (!raw) return;
+            try {
+                const payload = JSON.parse(raw);
+                if (applyPayload(payload)) {
+                    updateSettingsTimestamp(payload.savedAt);
+                    logConsole('> Session restored from last save.');
+                }
+            } catch (_) {
+                localStorage.removeItem(SAVE_KEY); // corrupt — start fresh
+            }
+        })();
+    </script>
 </body>
 </html>
