@@ -1731,7 +1731,8 @@ function renderBlueprintList() {
         }
 
         el.style.cssText += progressStyle;
-        el.innerHTML = `<span class="bp-icon-title">${def.icon} ${def.title}</span>${badge}`;
+        // Split icon and name into separate spans so CSS can stack them on mobile
+        el.innerHTML = `<span class="bp-icon-title"><span class="icon-part">${def.icon}</span><span class="name-part">${def.title}</span></span>${badge}`;
         el.onclick = () => openBlueprint(key, el);
         list.appendChild(el);
     }
@@ -2030,49 +2031,116 @@ function getPointerCoords(e) {
         : { x: e.clientX, y: e.clientY };
 }
 
+// ── Pinch-to-zoom state ────────────────────────────────────
+let _pinchActive   = false;
+let _pinchDist0    = 0;
+let _pinchScale0   = 1;
+let _pinchMidX     = 0;
+let _pinchMidY     = 0;
+
+function _touchDist(e) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    return Math.hypot(dx, dy);
+}
+function _touchMid(e) {
+    return {
+        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+    };
+}
+
 function onCanvasPointerDown(e) {
+    // Two-finger touch → pinch zoom, never sever/pan
+    if (e.touches && e.touches.length === 2) {
+        e.preventDefault();
+        _cancelSeverCheck();
+        _pinchActive = true;
+        isPanning    = false;
+        _pinchDist0  = _touchDist(e);
+        _pinchScale0 = camScale;
+        const mid    = _touchMid(e);
+        _pinchMidX   = mid.x;
+        _pinchMidY   = mid.y;
+        return;
+    }
+
     const isBackground = e.target === ws_area
         || e.target.id === 'canvas-inner'
         || e.target.id === 'wire-layer'
         || (e.target.tagName === 'path' && e.target.closest('#wire-layer'));
     if (isBackground) {
         const c = getPointerCoords(e);
-        _startSeverCheck(c.x, c.y);
+        // Sever only on mouse; on touch use longer hold (250ms) to avoid false triggers
+        const severDelay = e.touches ? 250 : 120;
+        _startSeverCheck(c.x, c.y, severDelay);
         isPanning = true; selectNodeCanvas(null);
         panStartX = c.x - camX; panStartY = c.y - camY;
     }
 }
 
 function onGlobalPointerMove(e) {
-    // Only handle compiler canvas movement when compiler is visible
-    if (document.getElementById('screen-compiler')?.classList.contains('active')) {
-        const c = getPointerCoords(e);
-        if (_severActive) { e.preventDefault(); _addSeverPoint(c.x, c.y); return; }
-        if (isPanning) {
-            e.preventDefault(); _cancelSeverCheck();
-            camX = c.x - panStartX; camY = c.y - panStartY;
-            updateCanvasTransform();
-        } else if (draggedNode) {
-            e.preventDefault(); _cancelSeverCheck();
-            const r = ws_area.getBoundingClientRect();
-            draggedNode.x = (c.x - r.left - camX) / camScale - dragOffset.x;
-            draggedNode.y = (c.y - r.top  - camY) / camScale - dragOffset.y;
-            draggedNode.element.style.left = draggedNode.x + 'px';
-            draggedNode.element.style.top  = draggedNode.y + 'px';
-            updateWires();
-        } else if (drawingWire) {
-            e.preventDefault(); _cancelSeverCheck();
-            const r  = ws_area.getBoundingClientRect();
-            const tx = (c.x - r.left - camX) / camScale;
-            const ty = (c.y - r.top  - camY) / camScale;
-            wLayer.innerHTML = ''; redrawExistingWires();
-            const s = getPortPos(wireStartNode.id, wireStartPort.dataset.port);
-            if (s) drawBez(s.x, s.y, tx, ty, wireStartPort.dataset.type, 'temp', true);
-        }
+    if (!document.getElementById('screen-compiler')?.classList.contains('active')) return;
+
+    // Pinch zoom takes priority
+    if (_pinchActive && e.touches && e.touches.length === 2) {
+        e.preventDefault();
+        const newDist  = _touchDist(e);
+        const newMid   = _touchMid(e);
+        const z        = newDist / _pinchDist0;
+        const newScale = Math.max(0.2, Math.min(_pinchScale0 * z, 4.0));
+
+        // Zoom around the midpoint between fingers
+        const r  = ws_area.getBoundingClientRect();
+        const tx = (_pinchMidX - r.left - camX) / camScale;
+        const ty = (_pinchMidY - r.top  - camY) / camScale;
+        camScale = newScale;
+        camX = (_pinchMidX - r.left) - tx * camScale;
+        camY = (_pinchMidY - r.top)  - ty * camScale;
+
+        // Also pan with finger midpoint drift
+        const dx = newMid.x - _pinchMidX;
+        const dy = newMid.y - _pinchMidY;
+        camX += dx; camY += dy;
+        _pinchMidX = newMid.x; _pinchMidY = newMid.y;
+
+        updateCanvasTransform();
+        return;
+    }
+
+    const c = getPointerCoords(e);
+    if (_severActive) { e.preventDefault(); _addSeverPoint(c.x, c.y); return; }
+    if (isPanning) {
+        e.preventDefault(); _cancelSeverCheck();
+        camX = c.x - panStartX; camY = c.y - panStartY;
+        updateCanvasTransform();
+    } else if (draggedNode) {
+        e.preventDefault(); _cancelSeverCheck();
+        const r = ws_area.getBoundingClientRect();
+        draggedNode.x = (c.x - r.left - camX) / camScale - dragOffset.x;
+        draggedNode.y = (c.y - r.top  - camY) / camScale - dragOffset.y;
+        draggedNode.element.style.left = draggedNode.x + 'px';
+        draggedNode.element.style.top  = draggedNode.y + 'px';
+        updateWires();
+    } else if (drawingWire) {
+        e.preventDefault(); _cancelSeverCheck();
+        const r  = ws_area.getBoundingClientRect();
+        const tx = (c.x - r.left - camX) / camScale;
+        const ty = (c.y - r.top  - camY) / camScale;
+        wLayer.innerHTML = ''; redrawExistingWires();
+        const s = getPortPos(wireStartNode.id, wireStartPort.dataset.port);
+        if (s) drawBez(s.x, s.y, tx, ty, wireStartPort.dataset.type, 'temp', true);
     }
 }
 
 function onGlobalPointerUp(e) {
+    // End pinch
+    if (_pinchActive && (!e.touches || e.touches.length < 2)) {
+        _pinchActive = false;
+        updateWires();
+        return;
+    }
+
     _cancelSeverCheck();
     if (_severActive) { _commitSever(); isPanning = false; return; }
     const wasDraggingNode = !!draggedNode;
@@ -2115,7 +2183,7 @@ function onCanvasWheel(e) {
     const r = ws_area.getBoundingClientRect();
     const tx = (e.clientX - r.left - camX) / camScale;
     const ty = (e.clientY - r.top  - camY) / camScale;
-    camScale = Math.max(0.25, Math.min(camScale * z, 3.0));
+    camScale = Math.max(0.2, Math.min(camScale * z, 4.0));
     camX = (e.clientX - r.left) - tx * camScale;
     camY = (e.clientY - r.top)  - ty * camScale;
     updateCanvasTransform(); updateWires();
@@ -2128,7 +2196,7 @@ function updateCanvasTransform() {
 // ── Swipe-to-sever ─────────────────────────────────────────
 let _severActive = false, _severPath = [], _severEl = null, _severHoldTimer = null;
 
-function _startSeverCheck(clientX, clientY) {
+function _startSeverCheck(clientX, clientY, delay = 120) {
     _severHoldTimer = setTimeout(() => {
         _severActive = true; _severPath = [];
         const wsRect = ws_area?.getBoundingClientRect();
@@ -2138,7 +2206,7 @@ function _startSeverCheck(clientX, clientY) {
             y: (clientY - wsRect.top  - camY) / camScale
         });
         if (ws_area) ws_area.style.cursor = 'crosshair';
-    }, 120);
+    }, delay);
 }
 function _cancelSeverCheck() { clearTimeout(_severHoldTimer); _severHoldTimer = null; }
 function _addSeverPoint(clientX, clientY) {

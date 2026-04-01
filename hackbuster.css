@@ -1196,26 +1196,29 @@ body {
     /* ── Compiler top bar ── */
     #comp-top-bar {
         justify-content: space-between;
-        padding-top: calc(8px + var(--safe-top));
+        padding-top: var(--safe-top);
         height: calc(44px + var(--safe-top));
+        padding-left: calc(12px + var(--safe-left));
+        padding-right: calc(12px + var(--safe-right));
     }
 
-    /* ── Main layout: full height minus top bar and bottom nav ── */
+    /* ── Main layout ── */
     #comp-main-layout { flex-direction: column; }
 
-    /* ── Left panel (Stash) — bottom sheet ── */
+    /* ── Left panel (Stash) — bottom sheet, half-height ── */
     #left-panel {
         position: fixed;
         bottom: calc(var(--bottom-nav-h) + var(--safe-bottom));
         left: 0;
         width: 100% !important;
-        height: 65%;
+        height: 48%;
+        background: #08080f;
         border-right: none;
         border-top: 2px solid var(--neon-blue);
-        transform: translateY(100%);
-        transition: transform 0.3s cubic-bezier(0.1, 0.8, 0.3, 1);
+        transform: translateY(105%);
+        transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
         z-index: 40;
-        box-shadow: 0 -8px 40px rgba(0,0,0,0.8);
+        box-shadow: 0 -12px 48px rgba(0,0,0,0.95);
     }
     #left-panel.open { transform: translateY(0); }
     #left-panel.collapsed { width: 100% !important; }
@@ -1228,65 +1231,107 @@ body {
         bottom: calc(var(--bottom-nav-h) + var(--safe-bottom));
         left: 0;
         width: 100% !important;
-        height: 55%;
+        height: 50%;
+        background: #08080f;
         border-left: none;
         border-top: 2px solid var(--neon-purple);
-        transform: translateY(100%);
-        transition: transform 0.3s cubic-bezier(0.1, 0.8, 0.3, 1);
+        transform: translateY(105%);
+        transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
         z-index: 39;
-        box-shadow: 0 -8px 40px rgba(0,0,0,0.8);
+        box-shadow: 0 -12px 48px rgba(0,0,0,0.95);
     }
     #right-panel.open { transform: translateY(0); }
 
-    /* ── IDE layout: horizontal split on mobile ──
-       Blueprint list becomes a compact sidebar, editor takes rest */
+    /* ── IDE: side-by-side blueprint list + editor ── */
     #ide-layout { flex-direction: row; height: 100%; }
     #ide-sidebar {
-        width: 120px;
-        min-width: 120px;
+        width: 110px;
+        min-width: 110px;
+        flex-shrink: 0;
         border-right: 1px solid var(--border-dim);
         border-bottom: none;
         overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
     }
-    /* Compact blueprint items on mobile */
+
+    /* Blueprint items: icon centered top, name below, badge below */
     .blueprint-item {
-        padding: 8px 8px;
-        font-size: 9px;
-        gap: 4px;
+        padding: 8px 4px 6px;
         flex-direction: column;
-        align-items: flex-start;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 2px;
+        min-height: 56px;
+        border-bottom: 1px solid #0e0e18;
+        overflow: hidden;
     }
-    .bp-icon-title { font-size: 9px; gap: 3px; }
-    .bp-badge { font-size: 8px; padding: 1px 3px; }
+    .blueprint-item:hover { background: #0e0e1a; }
+    .bp-icon-title {
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        width: 100%;
+    }
+    .bp-icon-title .icon-part {
+        font-size: 16px;
+        line-height: 1.1;
+    }
+    .bp-icon-title .name-part {
+        font-size: 7.5px;
+        line-height: 1.2;
+        color: #aaa;
+        word-break: break-word;
+        white-space: normal;
+        max-width: 95px;
+        text-align: center;
+    }
+    .bp-badge {
+        font-size: 8px;
+        padding: 1px 4px;
+        margin-top: 2px;
+    }
 
     #ide-main {
         flex: 1;
-        padding: 10px 12px;
+        padding: 8px 10px;
         gap: 8px;
         min-width: 0;
         overflow: hidden;
     }
-    .ide-header { padding-bottom: 8px; }
+    .ide-header { padding-bottom: 6px; flex-wrap: wrap; gap: 6px; }
     #ide-title { font-size: 13px; }
-    .code-editor { font-size: 11px; line-height: 1.6; }
-    #ide-console { height: 80px; font-size: 10px; }
-    .auto-btn { padding: 4px 10px; font-size: 9px; }
+    #ide-status { font-size: 8px; }
+    .code-editor { font-size: 11px; line-height: 1.7; }
+    #ide-console { height: 75px; font-size: 10px; line-height: 1.5; }
+    .auto-btn { padding: 5px 10px; font-size: 9px; }
+    .ide-line-num { width: 20px; margin-right: 8px; }
 
-    /* ── Bottom nav — 4 tabs + safe area ── */
+    /* ── Bottom nav — solid background, clips panel shadows ── */
     #bottom-nav {
         height: calc(var(--bottom-nav-h) + var(--safe-bottom));
         padding-bottom: var(--safe-bottom);
         padding-left: var(--safe-left);
         padding-right: var(--safe-right);
+        background: #06060e;  /* solid — hides any panel peeking below */
+        border-top: 1px solid #1a1a2e;
+        position: relative;
+        z-index: 50;  /* always above panels */
     }
 
-    /* ── Breach HUD tweaks ── */
-    .bar-container { width: 150px; height: 18px; }
-    .left-ui { gap: 8px; }
-    #fragment-counter { font-size: 14px; }
-    #time-display { font-size: 18px; padding: 3px 8px; }
+    /* ── Breach HUD ── */
+    .bar-container { width: 145px; height: 17px; }
+    .left-ui { gap: 7px; }
+    #fragment-counter { font-size: 13px; }
+    #time-display { font-size: 17px; padding: 3px 8px; }
     #breach-back-btn { font-size: 8px; padding: 3px 8px; }
 
-    /* ── Title screen safe area ── */
-    #screen-title { padding: var(--safe-top) var(--safe-left) var(--safe-bottom) var(--safe-left); }
+    /* ── Title screen ── */
+    #screen-title {
+        padding-top: calc(16px + var(--safe-top));
+        padding-bottom: calc(16px + var(--safe-bottom));
+        padding-left: calc(16px + var(--safe-left));
+        padding-right: calc(16px + var(--safe-right));
+    }
 }
